@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "xr-dev",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@spatial-lingo/xr", "dev"],
+      "port": 5173,
+      "autoPort": true
+    }
+  ]
+}

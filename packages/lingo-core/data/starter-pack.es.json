@@ -13,6 +13,7 @@
     { "label": "lamp",   "word": "lampara",  "article": "la", "phonetic": "LAHM-pah-rah",  "exampleSentence": "Enciende la lampara." },
     { "label": "plant",  "word": "planta",   "article": "la", "phonetic": "PLAHN-tah",     "exampleSentence": "La planta necesita agua." },
     { "label": "bed",    "word": "cama",     "article": "la", "phonetic": "KAH-mah",       "exampleSentence": "La cama es comoda." },
-    { "label": "shelf",  "word": "estante",  "article": "el", "phonetic": "es-TAHN-teh",   "exampleSentence": "Los libros estan en el estante." }
+    { "label": "shelf",  "word": "estante",  "article": "el", "phonetic": "es-TAHN-teh",   "exampleSentence": "Los libros estan en el estante." },
+    { "label": "wall art", "word": "cuadro", "article": "el", "phonetic": "KWAH-droh", "exampleSentence": "El cuadro es bonito." }
   ]
 }
