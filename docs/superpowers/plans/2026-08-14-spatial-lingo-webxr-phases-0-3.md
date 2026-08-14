@@ -25,6 +25,34 @@ Done 2026-08-14, recorded in the spec. Repo cloned to `reference/Unity-SpatialLi
 (`GIT_LFS_SKIP_SMUDGE=1`, ~16 MB), MIT confirmed via the GitHub API, 116 app C# files
 inventoried, IWSDK 0.5.3 typings read. Task 1 below only formalises what is already on disk.
 
+## Amendments during execution
+
+**1. Emulator verification replaces "cannot verify" in Tasks 9–11.**
+`@iwsdk/vite-plugin-dev` bundles IWER (Meta's Immersive Web Emulation Runtime) and
+`@iwer/sem`, the Synthetic Environment Module. SEM ships five real scanned room captures —
+`living_room`, `meeting_room`, `music_room`, `office_large`, `office_small` — totalling 119
+labelled spatial entities, which IWER exposes through the standard WebXR semantic label set
+(`table`, `couch`, `floor`, `ceiling`, `wall`, `door`, `window`, `shelf`, `bed`, `screen`,
+`lamp`, `plant`, `wall art`, `global mesh`, `desk`, `other`). Tasks 9–11 are verified against
+these rooms rather than deferred to hardware.
+
+What the emulator still cannot answer, and what therefore still needs a real Quest:
+- whether `camera-access` exists on Quest Browser (the 23 `PENDING` markers in
+  `docs/migration/00-recon.md`, which gate Phase 6)
+- any performance figure quoted in the guide's Chapter 12
+
+An emulator reports the features it chose to implement. That is a fact about IWER, not
+about Meta's browser, and the guide must not blur the two.
+
+**2. Two starter-pack gaps found against real capture data.** `bed` appears in none of the
+five rooms, so it is untestable in emulation though still correct on a real device. `wall art`
+appears 10 times across the captures and has no vocabulary entry. Task 9 adds it.
+
+**3. Task 5's `beginListening` guard was wrong in this plan's original code.** It accepted
+phase `'feedback'`, an unsanctioned transition that bypassed `dismissFeedback` so a correct
+answer was never recorded and the lesson never reached `complete`. Corrected above. Worth
+retelling in the migration guide: the transition table caught a bug the example code hid.
+
 ## File Structure
 
 ```
@@ -874,8 +902,11 @@ export class LessonMachine {
   }
 
   beginListening(): void {
-    if (this.#phase !== 'presenting' && this.#phase !== 'feedback') {
-      throw new Error(`beginListening requires phase presenting or feedback, got ${this.#phase}`);
+    // Only 'presenting' is sanctioned by the transition table. Accepting 'feedback'
+    // here would let a caller bypass dismissFeedback, so a correct verdict would
+    // never be recorded and the lesson would never reach 'complete'.
+    if (this.#phase !== 'presenting') {
+      throw new Error(`beginListening requires phase presenting, got ${this.#phase}`);
     }
     this.#phase = 'listening';
     this.#emit();
