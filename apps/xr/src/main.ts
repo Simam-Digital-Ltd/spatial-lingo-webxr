@@ -57,7 +57,10 @@ async function enterXR(capabilities: Capabilities): Promise<void> {
 
   world.registerSystem(SceneLabelSystem);
   const sceneLabelSystem = world.getSystem(SceneLabelSystem);
-  sceneLabelSystem?.setPack(loadPack(starterPack));
+  if (!sceneLabelSystem) {
+    throw new Error('[spatial-lingo] SceneLabelSystem failed to register');
+  }
+  sceneLabelSystem.setPack(loadPack(starterPack));
 
   world.renderer.xr.addEventListener('sessionstart', () => {
     const session = world.renderer.xr.getSession();

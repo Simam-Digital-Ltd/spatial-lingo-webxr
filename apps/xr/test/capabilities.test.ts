@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { probeCapabilities, resolveTier, type Capabilities } from '../src/capabilities.js';
-import { capabilitiesFromSession, OPTIONAL_FEATURES } from '../src/capabilities.js';
+import { capabilitiesFromSession } from '../src/capabilities.js';
 
 const NONE: Capabilities = {
   cameraAccess: false, meshDetection: false, planeDetection: false,
@@ -75,12 +75,5 @@ describe('capabilitiesFromSession', () => {
   it('tolerates a session with no enabledFeatures', () => {
     const session = {} as unknown as XRSession;
     expect(() => capabilitiesFromSession(session, base)).not.toThrow();
-  });
-
-  it('requests every feature the tiers depend on', () => {
-    expect(OPTIONAL_FEATURES).toContain('mesh-detection');
-    expect(OPTIONAL_FEATURES).toContain('plane-detection');
-    expect(OPTIONAL_FEATURES).toContain('hand-tracking');
-    expect(OPTIONAL_FEATURES).toContain('camera-access');
   });
 });

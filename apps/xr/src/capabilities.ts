@@ -28,6 +28,16 @@ const NONE: Capabilities = {
 export function resolveTier(capabilities: Capabilities): Tier {
   if (!capabilities.immersiveAR) return 4;
   if (!capabilities.meshDetection) return 3;
+  // Tier 1 is currently unreachable: `capabilities.cameraAccess` can never be
+  // true. The session is created via IWSDK's `World.create({ xr: { features }
+  // })`, and IWSDK 0.5.3's `XRFeatureOptions` type (see
+  // node_modules/@iwsdk/core/dist/init/xr.d.ts) only exposes `handTracking`,
+  // `anchors`, `hitTest`, `planeDetection`, `meshDetection`, `depthSensing`,
+  // `layers`, and `unbounded` — there is no flag to request the
+  // `camera-access` WebXR feature. Reaching Tier 1 needs either an IWSDK
+  // upgrade that adds camera-access support, or a later phase of our own that
+  // requests it some other way; until then this branch is dead in practice
+  // and every immersive-AR + mesh-detection device lands on Tier 2.
   return capabilities.cameraAccess ? 1 : 2;
 }
 
@@ -66,17 +76,6 @@ export async function probeCapabilities(nav: Navigator, win: Window): Promise<Ca
     speechRecognition,
   };
 }
-
-/** Optional WebXR features requested at session start. */
-export const OPTIONAL_FEATURES: readonly string[] = [
-  'local-floor',
-  'bounded-floor',
-  'mesh-detection',
-  'plane-detection',
-  'hand-tracking',
-  'anchors',
-  'camera-access',
-];
 
 /**
  * Refine capabilities from a live session.
