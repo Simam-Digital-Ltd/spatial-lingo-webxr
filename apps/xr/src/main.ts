@@ -1,5 +1,5 @@
 import { AmbientLight, DirectionalLight, SessionMode, World, launchXR } from '@iwsdk/core';
-import { loadPack } from '@spatial-lingo/core';
+import { loadPack, type LessonPack } from '@spatial-lingo/core';
 import starterPack from '@spatial-lingo/core/data/starter-pack.es.json' with { type: 'json' };
 
 import {
@@ -8,9 +8,11 @@ import {
   resolveTier,
   type Capabilities,
 } from './capabilities.js';
+import { LessonSystem } from './systems/lesson.js';
 import { ROOM_SCAN_GRACE_PERIOD_MS, RoomSourceController } from './systems/room-fallback.js';
 import { SceneLabelSystem } from './systems/scene-label.js';
 import { SimulatedRoomSystem } from './systems/simulated-room.js';
+import { TargetSelectionSystem } from './systems/target-selection.js';
 
 /** Number of stand-in objects the simulated room spawns. */
 const SIMULATED_ROOM_COUNT = 6;
@@ -60,6 +62,44 @@ function addBasicLighting(world: World): void {
 }
 
 /**
+ * Registers the lesson loop systems and connects them: the desktop-mouse
+ * `TargetSelectionSystem` feeds selected labels into `LessonSystem`, and the
+ * `#attempt` text input feeds typed attempts into it. Shared by both the XR
+ * and desktop entry points so the loop behaves identically on every tier.
+ *
+ * The dismiss timeout is only scheduled when `lesson.submit()` reports the
+ * attempt was actually accepted — if the machine was already out of the
+ * `listening` phase (e.g. a stray keystroke during feedback), `submit()`
+ * no-ops and there is nothing to dismiss.
+ */
+function wireLessonLoop(world: World, pack: LessonPack): void {
+  world.registerSystem(LessonSystem);
+  world.registerSystem(TargetSelectionSystem);
+  const lesson = world.getSystem(LessonSystem);
+  const selection = world.getSystem(TargetSelectionSystem);
+  if (!lesson || !selection) {
+    throw new Error('[spatial-lingo] lesson systems failed to register');
+  }
+
+  lesson.start(pack);
+  selection.onSelect((label) => lesson.selectTarget(label));
+
+  const input = document.getElementById('attempt');
+  if (input instanceof HTMLInputElement) {
+    input.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      const submitted = lesson.submit(input.value);
+      input.value = '';
+      if (submitted) {
+        setTimeout(() => lesson.dismiss(), 1500);
+      }
+    });
+  } else {
+    console.warn('[spatial-lingo] missing #attempt input; lesson attempts cannot be submitted');
+  }
+}
+
+/**
  * Build the IWSDK world, wire up scene understanding, and start the XR
  * session. Only called once we know `immersiveAR` is supported.
  *
@@ -106,6 +146,7 @@ async function enterXR(capabilities: Capabilities): Promise<void> {
 
   const pack = loadPack(starterPack);
   sceneLabelSystem.setPack(pack);
+  wireLessonLoop(world, pack);
 
   // Tracks whether we're still waiting on a real scan, already found one, or
   // have committed to the simulated room, so the two sources never combine.
@@ -187,7 +228,9 @@ async function enterDesktop(): Promise<void> {
     throw new Error('[spatial-lingo] SimulatedRoomSystem failed to register');
   }
 
-  simulatedRoom.spawn(loadPack(starterPack), SIMULATED_ROOM_COUNT);
+  const pack = loadPack(starterPack);
+  simulatedRoom.spawn(pack, SIMULATED_ROOM_COUNT);
+  wireLessonLoop(world, pack);
 }
 
 async function main(): Promise<void> {
