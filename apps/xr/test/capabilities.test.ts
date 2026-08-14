@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { probeCapabilities, resolveTier, type Capabilities } from '../src/capabilities.js';
+import { capabilitiesFromSession, OPTIONAL_FEATURES } from '../src/capabilities.js';
 
 const NONE: Capabilities = {
   cameraAccess: false, meshDetection: false, planeDetection: false,
@@ -49,5 +50,37 @@ describe('probeCapabilities', () => {
     expect(result.handTracking).toBe(true);
     expect(result.speechRecognition).toBe(true);
     expect(result.cameraAccess).toBe(false);
+  });
+});
+
+describe('capabilitiesFromSession', () => {
+  const base: Capabilities = { ...NONE, immersiveAR: true };
+
+  it('reads enabled features off the session', () => {
+    const session = { enabledFeatures: ['mesh-detection', 'hand-tracking'] } as unknown as XRSession;
+    const result = capabilitiesFromSession(session, base);
+    expect(result.meshDetection).toBe(true);
+    expect(result.handTracking).toBe(true);
+    expect(result.planeDetection).toBe(false);
+    expect(result.cameraAccess).toBe(false);
+  });
+
+  it('preserves base values the session says nothing about', () => {
+    const session = { enabledFeatures: [] } as unknown as XRSession;
+    const result = capabilitiesFromSession(session, { ...base, speechRecognition: true });
+    expect(result.speechRecognition).toBe(true);
+    expect(result.immersiveAR).toBe(true);
+  });
+
+  it('tolerates a session with no enabledFeatures', () => {
+    const session = {} as unknown as XRSession;
+    expect(() => capabilitiesFromSession(session, base)).not.toThrow();
+  });
+
+  it('requests every feature the tiers depend on', () => {
+    expect(OPTIONAL_FEATURES).toContain('mesh-detection');
+    expect(OPTIONAL_FEATURES).toContain('plane-detection');
+    expect(OPTIONAL_FEATURES).toContain('hand-tracking');
+    expect(OPTIONAL_FEATURES).toContain('camera-access');
   });
 });

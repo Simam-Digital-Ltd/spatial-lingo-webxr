@@ -66,3 +66,33 @@ export async function probeCapabilities(nav: Navigator, win: Window): Promise<Ca
     speechRecognition,
   };
 }
+
+/** Optional WebXR features requested at session start. */
+export const OPTIONAL_FEATURES: readonly string[] = [
+  'local-floor',
+  'bounded-floor',
+  'mesh-detection',
+  'plane-detection',
+  'hand-tracking',
+  'anchors',
+  'camera-access',
+];
+
+/**
+ * Refine capabilities from a live session.
+ *
+ * `session.enabledFeatures` is the only trustworthy source: a feature can be
+ * requested and silently declined, so we never assume a request succeeded.
+ */
+export function capabilitiesFromSession(session: XRSession, base: Capabilities): Capabilities {
+  const enabled = new Set<string>(
+    (session as XRSession & { enabledFeatures?: readonly string[] }).enabledFeatures ?? [],
+  );
+  return {
+    ...base,
+    meshDetection: enabled.has('mesh-detection'),
+    planeDetection: enabled.has('plane-detection'),
+    handTracking: enabled.has('hand-tracking'),
+    cameraAccess: enabled.has('camera-access'),
+  };
+}
