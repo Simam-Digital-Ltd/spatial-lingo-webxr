@@ -40,6 +40,36 @@ Spatial Lingo is five subsystems. The port maps each to a web equivalent:
 | Passthrough Camera API + Unity Sentis + YOLO/COCO | WebXR `camera-access` + ONNX Runtime Web (WebGPU) | **High** |
 | Golly Gosh character, language tree, VFX | glTF/GLB via an asset conversion pipeline | Medium |
 
+### Phase 0 recon findings (2026-08-14)
+
+The source repo was cloned and inventoried. Five findings amend the assumptions above:
+
+1. **Lesson targets do not come from MRUK.** `Scripts/Utilities/RoomSense.cs` is 1.9 KB and
+   only wraps MRUK's `FindSpawnPositions` to pick a single spawn point. Real lesson targets
+   come from `Meta.Utilities.ObjectClassifier.ImageObjectClassifier` + `CameraTaxonTracker` +
+   `EnvironmentRaycastManager` — i.e. camera and YOLO. **Our scene-mesh core loop is therefore
+   a redesign, not a port.** This is stated plainly in the guide rather than glossed.
+2. **The app flow is not in C#.** `Data/StateGraph/AppFlow.asset` is a serialized Unity Visual
+   Scripting graph; `Scripts/VisualScriptingUnits/*.cs` are custom nodes for it. Top-level
+   application flow cannot be read from source alone. Earns its own guide section:
+   *when the logic isn't in the code at all*.
+3. **IWSDK is closer to parity than assumed.** It ships `scene-understanding`,
+   `environment-raycast`, `camera`, and `depth` modules. `XRMesh` exposes `semanticLabel`,
+   `dimensions`, `min`, `max`, and `isBounded3D` — exactly the Tier 2 mechanism.
+   Note: IWSDK's `CameraSystem` is MediaDevices-based (`deviceId`, `facing`, `videoElement`,
+   `stream`), *not* WebXR raw camera access.
+4. **`Data/InferenceEngine/ObjectClassifier/yolov9onnx.onnx` ships in the repo** (Git LFS) with
+   `classesYolo.txt` (80 COCO classes, 706 bytes, not LFS). Raw ONNX is directly loadable by
+   ONNX Runtime Web, making Phase 6 more feasible than originally priced.
+5. **Concrete stack facts** (from `@iwsdk/core@0.5.3` typings): ECS is `elics`; system config
+   is `@preact/signals-core` Signals; UI is `@pmndrs/uikit`; systems are built with
+   `createSystem(queries, schema)` and tick via `update(delta, time)` **in seconds**
+   (three.js `Clock` convention, matching Unity's `Time.deltaTime`).
+
+Source scale: 116 app C# files under `Assets/SpatialLingo/Scripts`. The four largest —
+`ExerciseManager.cs` (39 KB), `LessonsManager.cs` (39 KB), `AssistantAI.cs` (38 KB),
+`Lesson3DInteractor.cs` (28 KB) — hold the core loop and are the primary porting targets.
+
 ### The camera-access problem
 
 The signature loop — point at a real chair, learn the word for chair — depends on raw
@@ -196,6 +226,9 @@ TypeScript throughout, drawn from real code in this port rather than invented ex
 - `[SerializeField]` inspector tuning → dev UI, hot reload, and config modules
 - Static typing differences that actually bite: structs vs objects, value vs reference
   semantics, `float` vs `number`, and integer division
+- **When the logic isn't in the code at all** — Spatial Lingo's top-level flow lives in a
+  Unity Visual Scripting graph (`AppFlow.asset`), not in C#. How to recover behaviour from a
+  serialized graph, and why an explicit TypeScript state machine is the better destination
 
 ## Testing
 
@@ -211,7 +244,7 @@ Each phase ends deployed and playable. Nothing accumulates unshipped.
 
 | # | Phase | Exit criteria |
 | --- | --- | --- |
-| 0 | Recon | Unity repo cloned with LFS, subsystem + asset inventory written, licensing confirmed |
+| 0 | Recon | **Done 2026-08-14.** Repo cloned, inventory written, MIT confirmed. See findings above. |
 | 1 | Scaffold | IWSDK app deployed to Vercel, capability probe reporting on real hardware, CI green |
 | 2 | Assets | Golly Gosh + tree rendering in-headset from GLB, pipeline scripted and documented |
 | 3 | Core loop | `lingo-core` + scene-mesh targets + lesson panels playable on static pack |
@@ -229,6 +262,7 @@ Each phase ends deployed and playable. Nothing accumulates unshipped.
 | Unity assets do not convert cleanly | Phase 2 scheduled early. Procedural stand-ins as fallback, failures documented. |
 | Scene semantic labels too coarse for a language app | Supplement with virtual props (Tier 3 mechanism) to widen vocabulary. |
 | Guide written too late, details forgotten | Chapters written per-phase, enforced as a phase exit criterion. |
+| IWSDK is 0.x (0.5.3, 14 releases) and will churn | Pin exact versions, no `^` ranges. Upgrades are deliberate, isolated commits. |
 | WebXR performance below Quest-native | Measure and publish honestly in Chapter 12. An honest comparison is more useful than a flattering one. |
 
 ## Open questions
