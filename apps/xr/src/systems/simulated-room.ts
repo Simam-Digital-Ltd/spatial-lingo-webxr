@@ -70,6 +70,9 @@ export class SimulatedRoomSystem extends createSystem({}) {
         word: entry.word,
         learned: false,
       });
+      console.info('[spatial-lingo] simulated target:', entry.label, '->', entry.word);
     });
+
+    console.info('[spatial-lingo] simulated room spawned', entries.length, 'stand-in target(s)');
   }
 }

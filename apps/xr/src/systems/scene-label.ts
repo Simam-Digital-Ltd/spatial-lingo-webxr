@@ -44,6 +44,7 @@ export class SceneLabelSystem extends createSystem({
   meshes: { required: [XRMesh] },
 }) {
   #pack: LessonPack | null = null;
+  #tagGuard: (() => boolean) | null = null;
 
   /**
    * Loads the active lesson pack and immediately tags any meshes that
@@ -58,6 +59,16 @@ export class SceneLabelSystem extends createSystem({
     }
   }
 
+  /**
+   * Installs a predicate consulted right before a mesh is tagged. Used by
+   * `main.ts` to veto tagging once the Tier 2 room-scan fallback has already
+   * committed to the simulated room, so a late-arriving real mesh can never
+   * combine with the stand-in boxes. Absent a guard, tagging is unrestricted.
+   */
+  setTagGuard(guard: () => boolean): void {
+    this.#tagGuard = guard;
+  }
+
   init(): void {
     this.queries.meshes.subscribe('qualify', (entity) => this.#tagEntity(entity));
   }
@@ -69,6 +80,7 @@ export class SceneLabelSystem extends createSystem({
     const label = entity.getValue(XRMesh, 'semanticLabel');
     const target = resolveLessonTarget(isBounded, label, this.#pack);
     if (!target) return;
+    if (this.#tagGuard && !this.#tagGuard()) return;
 
     entity.addComponent(LessonTarget, {
       label: target.label,

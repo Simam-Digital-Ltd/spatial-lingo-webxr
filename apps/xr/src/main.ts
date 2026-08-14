@@ -8,11 +8,23 @@ import {
   resolveTier,
   type Capabilities,
 } from './capabilities.js';
+import { ROOM_SCAN_GRACE_PERIOD_MS, RoomSourceController } from './systems/room-fallback.js';
 import { SceneLabelSystem } from './systems/scene-label.js';
 import { SimulatedRoomSystem } from './systems/simulated-room.js';
 
 /** Number of stand-in objects the simulated room spawns. */
 const SIMULATED_ROOM_COUNT = 6;
+
+/** Appends a note to #status about the Tier 2 room-scan fallback, without wiping the capability readout. */
+function announceRoomScanFallback(): void {
+  const status = document.getElementById('status');
+  if (!status) return;
+  status.innerHTML += [
+    '<br />',
+    '<em>No room scan found — showing stand-in targets. ',
+    'Run Room Setup on your headset to use your real room instead.</em>',
+  ].join('');
+}
 
 function render(capabilities: Capabilities): void {
   const status = document.getElementById('status');
@@ -95,7 +107,15 @@ async function enterXR(capabilities: Capabilities): Promise<void> {
   const pack = loadPack(starterPack);
   sceneLabelSystem.setPack(pack);
 
+  // Tracks whether we're still waiting on a real scan, already found one, or
+  // have committed to the simulated room, so the two sources never combine.
+  // See room-fallback.ts for the full race-condition reasoning.
+  const roomSource = new RoomSourceController();
+  sceneLabelSystem.setTagGuard(() => roomSource.onRealTargetSeen());
+
   let roomSourceChosen = false;
+  let fallbackTimer: ReturnType<typeof setTimeout> | undefined;
+
   world.renderer.xr.addEventListener('sessionstart', () => {
     const session = world.renderer.xr.getSession();
     if (!session) return;
@@ -108,8 +128,35 @@ async function enterXR(capabilities: Capabilities): Promise<void> {
     if (!roomSourceChosen) {
       roomSourceChosen = true;
       if (resolveTier(refined) === 3) {
+        // No mesh-detection at all: go straight to stand-ins, and lock the
+        // controller so a spurious late mesh can never also get tagged.
+        roomSource.markSimulatedRoomSpawned();
         simulatedRoom.spawn(pack, SIMULATED_ROOM_COUNT);
+      } else {
+        // Tier 2: mesh-detection was granted, but the headset may never have
+        // been through Room Setup, in which case SceneLabelSystem will never
+        // see a mesh to tag. Give a real scan a grace period to show up
+        // before assuming the room is unscanned and falling back.
+        fallbackTimer = setTimeout(() => {
+          fallbackTimer = undefined;
+          if (roomSource.onGraceTimerFired()) {
+            simulatedRoom.spawn(pack, SIMULATED_ROOM_COUNT);
+            announceRoomScanFallback();
+            console.info(
+              '[spatial-lingo] no room scan detected within',
+              ROOM_SCAN_GRACE_PERIOD_MS,
+              'ms; falling back to simulated room',
+            );
+          }
+        }, ROOM_SCAN_GRACE_PERIOD_MS);
       }
+    }
+  });
+
+  world.renderer.xr.addEventListener('sessionend', () => {
+    if (fallbackTimer !== undefined) {
+      clearTimeout(fallbackTimer);
+      fallbackTimer = undefined;
     }
   });
 
