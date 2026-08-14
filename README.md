@@ -22,8 +22,17 @@ sustain, degrading gracefully rather than requiring a specific device:
 | --- | --- | --- |
 | 1 | `camera-access` WebXR feature, on top of mesh detection | **Structurally unreachable in this build.** IWSDK 0.5.3's session-feature options (`XRFeatureOptions`) have no flag to request `camera-access` at all, so it is never requested and can never come back granted — see `apps/xr/src/capabilities.ts:31`. The four-tier design is three tiers in practice until IWSDK adds that flag or a later phase requests the feature another way. |
 | 2 | `immersive-ar` + mesh detection granted | Real scanned-room meshes carrying a WebXR semantic label become lesson targets. If mesh detection is granted but the room was never scanned (no meshes appear), the app waits 4 seconds and then falls back to Tier 3/4's stand-in targets rather than sitting empty. |
-| 3 | `immersive-ar` granted, no mesh detection | Six stand-in boxes spawn on an arc in front of the player, each tagged with a real vocabulary word, so the lesson loop is still playable in a passthrough session with no scene understanding. |
+| 3 | `immersive-ar` granted, no mesh detection | Six stand-in boxes spawn on an arc in front of the player, each tagged with a real vocabulary word. |
 | 4 | No WebXR at all | A plain desktop/browser scene with the same stand-in boxes. This is what makes the project runnable and reviewable without a headset. |
+
+**Selection input is desktop-only, in every tier.** Tiers 2 and 3 spawn and tag targets in a
+passthrough session, but `TargetSelectionSystem` (`apps/xr/src/systems/target-selection.ts`)
+only wires up a desktop mouse `pointerdown` raycast, and the word-attempt input is a DOM
+`<input>` element with no `dom-overlay` WebXR feature requested to make it reachable in-headset.
+So while a real Quest session will correctly spawn and label targets, there is currently no way
+to select one or submit an attempt from inside the headset — the lesson loop only runs
+end-to-end on desktop (Tier 4, or a mouse over a Tier 2/3 view) until a controller-ray selection
+path is added.
 
 Verified live: on desktop, under the production build, the app resolves Tier 4 and runs the full
 lesson loop with no headset. Under the [IWER](https://github.com/meta-quest/immersive-web-emulation-runtime)
@@ -59,8 +68,14 @@ apps/xr/                The WebXR app: IWSDK world setup, capability probing, sc
                         and simulated-room systems, the desktop-mouse target-selection input,
                         and the DOM overlay that renders lesson state.
 docs/migration/         The migration guide — how this port was built, chapter by chapter.
-reference/              The original Unity project, read-only, for citation and comparison.
-                        Never modified by this port.
+```
+
+`reference/Unity-SpatialLingo` (the original Unity project, used read-only for citation and
+comparison) is **gitignored** and not part of the clone — it's a local-only working directory.
+Recreate it yourself if you want it:
+
+```bash
+git clone https://github.com/oculus-samples/Unity-SpatialLingo reference/Unity-SpatialLingo
 ```
 
 ## The migration guide
@@ -88,4 +103,4 @@ The original Spatial Lingo application, and the Immersive Web SDK this port is b
 both open-source projects by Meta Platforms, Inc. and affiliates, licensed under the MIT
 License. See [`NOTICE`](NOTICE) for the full attribution and links to both upstream projects.
 
-This project itself is licensed under the MIT License (see `license` in `package.json`).
+This project itself is licensed under the MIT License. See [`LICENSE`](LICENSE) for the full text.

@@ -1,8 +1,9 @@
 # 00 — Device recon: real WebXR capability readings
 
 This document records what a **physical Meta Quest headset, running Quest Browser**,
-actually reports for `session.enabledFeatures` when the app requests
-`OPTIONAL_FEATURES` (see `apps/xr/src/capabilities.ts`).
+actually reports for `session.enabledFeatures` when the app requests its IWSDK
+session features (`meshDetection`, `planeDetection`, `handTracking`, `anchors` —
+see `apps/xr/src/main.ts`'s `World.create({ xr: { features } })` call).
 
 It answers the spec's open question — does `camera-access` exist on Quest Browser? —
 which decides whether Phase 6 (`CameraVisionSystem`, camera + YOLO) is ever worth
@@ -24,9 +25,11 @@ on a real device yet. Do not treat any value below as measured.
    ```
    (Requires an authenticated `vercel` CLI session — run `vercel login` first if needed.)
 2. Put on the Quest headset and open the deployment URL in Quest Browser.
-3. Confirm the on-page status panel renders `Tier 4` before entering XR (desktop/no-session
-   baseline — on Quest Browser without a session yet, this is really "no session started",
-   which reads the same as Tier 4 until you press the button).
+3. Confirm the on-page status panel renders `Tier 3` before entering XR. Quest Browser reports
+   `immersive-ar` as supported even with no session started, so `resolveTier` sees
+   `immersiveAR: true` with no mesh detection yet and resolves to Tier 3 — not Tier 4, which is
+   only what a browser with no WebXR support at all resolves to (see `apps/xr/src/capabilities.ts`'s
+   `resolveTier`).
 4. Press **Enter XR**. Accept any permission prompts the browser shows (hand tracking,
    scene understanding, etc.) — decline none of them, so the reading reflects the browser's
    actual ceiling, not a user's conservative choice.
@@ -51,17 +54,17 @@ on a real device yet. Do not treat any value below as measured.
 | Date tested | PENDING — requires physical Quest |
 | Tester | PENDING — requires physical Quest |
 
-## Requested features (`OPTIONAL_FEATURES`)
+## Requested features (IWSDK session features, `apps/xr/src/main.ts`)
 
 | Feature | Requested | Enabled on device (`session.enabledFeatures`) |
 | --- | --- | --- |
-| `local-floor` | yes | PENDING — requires physical Quest |
-| `bounded-floor` | yes | PENDING — requires physical Quest |
+| `local-floor` | yes (IWSDK reference-space default) | PENDING — requires physical Quest |
+| `bounded-floor` | yes (IWSDK reference-space default) | PENDING — requires physical Quest |
 | `mesh-detection` | yes | PENDING — requires physical Quest |
 | `plane-detection` | yes | PENDING — requires physical Quest |
 | `hand-tracking` | yes | PENDING — requires physical Quest |
 | `anchors` | yes | PENDING — requires physical Quest |
-| `camera-access` | yes | PENDING — requires physical Quest |
+| `camera-access` | no — not requestable in IWSDK 0.5.3 (`XRFeatureOptions` has no `cameraAccess` flag; see below) | PENDING — requires physical Quest |
 
 ## Resolved capabilities (from `resolveTier`)
 
@@ -112,8 +115,11 @@ emulator, a real `requestSession('immersive-ar')` call was made and observed liv
 
 - Granted: `local-floor bounded-floor mesh-detection plane-detection hand-tracking anchors
   viewer local`
-- `camera-access` was requested (as part of the app's `OPTIONAL_FEATURES` set at the time) but
-  **not** granted by IWER — `cameraAccess: false` in the resulting `Capabilities` object.
+- `camera-access` was requested at the time this verification was run, under an earlier build
+  that still had a (since-removed) `OPTIONAL_FEATURES` set including it, and was **not** granted
+  by IWER — `cameraAccess: false` in the resulting `Capabilities` object. The current build no
+  longer requests `camera-access` at all (see the "Tier 1 is structurally unreachable" section
+  above), so this result is now doubly true: unrequested features can't be granted either.
 - `capabilitiesFromSession` + `resolveTier` correctly resolved this to **Tier 2**, the spec's
   designed default for "mesh detection without camera access."
 

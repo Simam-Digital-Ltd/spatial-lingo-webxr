@@ -1,5 +1,13 @@
 import type { VocabularyEntry } from './types.js';
 
+/**
+ * `'close'` is currently surfaced to the UI as feedback text only. Attempt
+ * accounting in `machine.ts` treats anything that isn't `'correct'` the
+ * same way, so `'close'` and `'incorrect'` are indistinguishable to the
+ * state machine today. Giving `'close'` its own accounting behaviour (e.g.
+ * a retry instead of a hard miss) is a deliberate later decision, not an
+ * oversight.
+ */
 export type AttemptVerdict = 'correct' | 'close' | 'incorrect';
 
 export interface AttemptResult {

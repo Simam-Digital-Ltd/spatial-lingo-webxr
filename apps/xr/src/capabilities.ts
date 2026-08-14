@@ -43,7 +43,6 @@ export function resolveTier(capabilities: Capabilities): Tier {
 
 interface FeatureProbe {
   isSessionSupported?: (mode: string) => Promise<boolean>;
-  __supported?: Set<string>;
 }
 
 /**
@@ -51,6 +50,16 @@ interface FeatureProbe {
  *
  * Takes Navigator and Window explicitly rather than reading globals, so the
  * logic is unit-testable in Node without a DOM.
+ *
+ * WebXR gives no way to ask, ahead of a session, whether an optional feature
+ * like mesh detection, plane detection, hand tracking, or camera access will
+ * be granted. `navigator.xr.isSessionSupported(mode)` only answers whether a
+ * session *mode* (e.g. `immersive-ar`) can be requested at all — it says
+ * nothing about which optional features that session would grant. There is
+ * no pre-session feature-support query in the spec, so those four
+ * capabilities are always reported `false` here regardless of the device.
+ * The only real source of truth for them is `capabilitiesFromSession`, which
+ * reads `session.enabledFeatures` off a session that has actually started.
  */
 export async function probeCapabilities(nav: Navigator, win: Window): Promise<Capabilities> {
   const xr = (nav as Navigator & { xr?: FeatureProbe }).xr;
@@ -63,16 +72,12 @@ export async function probeCapabilities(nav: Navigator, win: Window): Promise<Ca
     immersiveAR = false;
   }
 
-  const supported = xr.__supported ?? new Set<string>();
   const speechRecognition =
     'SpeechRecognition' in win || 'webkitSpeechRecognition' in win;
 
   return {
+    ...NONE,
     immersiveAR,
-    meshDetection: supported.has('mesh-detection'),
-    planeDetection: supported.has('plane-detection'),
-    handTracking: supported.has('hand-tracking'),
-    cameraAccess: supported.has('camera-access'),
     speechRecognition,
   };
 }

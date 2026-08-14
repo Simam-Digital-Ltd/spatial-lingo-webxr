@@ -31,24 +31,24 @@ describe('probeCapabilities', () => {
     expect(result).toEqual(NONE);
   });
 
-  it('reports features the session supports', async () => {
-    const supported = new Set(['mesh-detection', 'plane-detection', 'hand-tracking']);
+  it('reports immersiveAR and speechRecognition, but never the optional features', async () => {
+    // WebXR has no pre-session query for optional-feature support, so
+    // meshDetection/planeDetection/handTracking/cameraAccess must stay false
+    // here no matter what the fake reports elsewhere. Only a live session
+    // (capabilitiesFromSession) can tell us the truth about those.
     const nav = {
       xr: {
         isSessionSupported: async (mode: string) => mode === 'immersive-ar',
-        // Feature probing is done by attempting optional features; the fake
-        // reports support directly to keep the test hermetic.
-        __supported: supported,
       },
     } as unknown as Navigator;
     const win = { SpeechRecognition: class {} } as unknown as Window;
 
     const result = await probeCapabilities(nav, win);
     expect(result.immersiveAR).toBe(true);
-    expect(result.meshDetection).toBe(true);
-    expect(result.planeDetection).toBe(true);
-    expect(result.handTracking).toBe(true);
     expect(result.speechRecognition).toBe(true);
+    expect(result.meshDetection).toBe(false);
+    expect(result.planeDetection).toBe(false);
+    expect(result.handTracking).toBe(false);
     expect(result.cameraAccess).toBe(false);
   });
 });

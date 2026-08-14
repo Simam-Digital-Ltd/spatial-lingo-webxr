@@ -87,8 +87,8 @@ decision in this port.
 
 ## Exact-version pinning, and why it matters more here than usual
 
-Every dependency in this workspace is pinned to an exact version — no `^` or `~` — in both
-`package.json` files:
+Every dependency in this workspace is pinned to an exact version — no `^` or `~` — across all
+three `package.json` files (root, `packages/lingo-core`, `apps/xr`):
 
 ```json
 // apps/xr/package.json
@@ -105,8 +105,9 @@ only admits patch bumps — `^0.184.0` resolves to `0.184.x`, not `0.184.0` thro
 caret on a 0.x package reads as more permissive than it is, right up until a transitive
 dependency pins a *different* 0.x caret and the two ranges don't overlap. That's exactly what
 happened partway through this build: `@iwer/sem` (needed to add the IWER WebXR emulator, see
-Chapter 4) requires `three: "^0.184.0"`. Since `three` was 0.x, that caret admitted only
-`0.184.0` — nothing looser. The project was on `three@0.170.0`. That single transitive
+Chapter 4) requires `three: "^0.184.0"`. Since `three` was 0.x, that caret admitted only `0.184.x`
+patch releases — not `0.184.0` alone, but still nothing looser than the `0.184` minor. The
+project was on `three@0.170.0`. That single transitive
 requirement cascaded:
 
 ```
