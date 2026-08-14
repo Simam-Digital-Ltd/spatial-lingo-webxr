@@ -13,12 +13,15 @@
   "dependencies": {
     "@iwsdk/core": "0.5.3",
     "@spatial-lingo/core": "workspace:*",
-    "three": "0.170.0"
+    "three": "0.184.0"
   },
   "devDependencies": {
+    "@iwer/sem": "2.3.0",
+    "@iwsdk/vite-plugin-dev": "0.5.3",
     "@types/webxr": "0.5.24",
+    "iwer": "2.3.0",
     "typescript": "5.7.3",
-    "vite": "6.0.7",
-    "vitest": "2.1.8"
+    "vite": "7.3.6",
+    "vitest": "4.1.10"
   }
 }
