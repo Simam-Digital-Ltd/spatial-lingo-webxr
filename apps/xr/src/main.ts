@@ -1,4 +1,4 @@
-import { SessionMode, World, launchXR } from '@iwsdk/core';
+import { AmbientLight, DirectionalLight, SessionMode, World, launchXR } from '@iwsdk/core';
 import { loadPack } from '@spatial-lingo/core';
 import starterPack from '@spatial-lingo/core/data/starter-pack.es.json' with { type: 'json' };
 
@@ -9,6 +9,10 @@ import {
   type Capabilities,
 } from './capabilities.js';
 import { SceneLabelSystem } from './systems/scene-label.js';
+import { SimulatedRoomSystem } from './systems/simulated-room.js';
+
+/** Number of stand-in objects the simulated room spawns. */
+const SIMULATED_ROOM_COUNT = 6;
 
 function render(capabilities: Capabilities): void {
   const status = document.getElementById('status');
@@ -23,14 +27,37 @@ function render(capabilities: Capabilities): void {
   console.info('[spatial-lingo] capabilities', capabilities, 'tier', tier);
 }
 
-/**
- * Build the IWSDK world, wire up scene understanding, and start the XR
- * session. Only called once we know `immersiveAR` is supported, so a Tier 4
- * (desktop, no WebXR) device never reaches this code path.
- */
-async function enterXR(capabilities: Capabilities): Promise<void> {
+function getContainer(): HTMLElement {
   const container = document.getElementById('scene-container');
   if (!container) throw new Error('[spatial-lingo] missing #scene-container');
+  return container;
+}
+
+/**
+ * Minimal lighting for the stand-in boxes: `MeshStandardMaterial` renders
+ * black without at least one light in the scene. Three.js lights illuminate
+ * the whole scene graph regardless of where they're parented, so adding them
+ * directly to `world.scene` is enough; it doesn't touch AR passthrough video,
+ * which isn't a lit three.js object.
+ */
+function addBasicLighting(world: World): void {
+  world.scene.add(new AmbientLight(0xffffff, 1.5));
+  const sun = new DirectionalLight(0xffffff, 1.5);
+  sun.position.set(2, 4, 2);
+  world.scene.add(sun);
+}
+
+/**
+ * Build the IWSDK world, wire up scene understanding, and start the XR
+ * session. Only called once we know `immersiveAR` is supported.
+ *
+ * Both Tier 2 (mesh detection available) and Tier 3 (no mesh detection) run
+ * through this path: which room source ends up producing `LessonTarget`
+ * entities is decided once the session actually starts and we know whether
+ * mesh detection was really granted, not from the pre-session probe.
+ */
+async function enterXR(capabilities: Capabilities): Promise<void> {
+  const container = getContainer();
 
   const world = await World.create(container, {
     xr: {
@@ -55,27 +82,75 @@ async function enterXR(capabilities: Capabilities): Promise<void> {
     },
   });
 
-  world.registerSystem(SceneLabelSystem);
-  const sceneLabelSystem = world.getSystem(SceneLabelSystem);
-  if (!sceneLabelSystem) {
-    throw new Error('[spatial-lingo] SceneLabelSystem failed to register');
-  }
-  sceneLabelSystem.setPack(loadPack(starterPack));
+  addBasicLighting(world);
 
+  world.registerSystem(SceneLabelSystem);
+  world.registerSystem(SimulatedRoomSystem);
+  const sceneLabelSystem = world.getSystem(SceneLabelSystem);
+  const simulatedRoom = world.getSystem(SimulatedRoomSystem);
+  if (!sceneLabelSystem || !simulatedRoom) {
+    throw new Error('[spatial-lingo] room systems failed to register');
+  }
+
+  const pack = loadPack(starterPack);
+  sceneLabelSystem.setPack(pack);
+
+  let roomSourceChosen = false;
   world.renderer.xr.addEventListener('sessionstart', () => {
     const session = world.renderer.xr.getSession();
     if (!session) return;
-    render(capabilitiesFromSession(session, capabilities));
+    const refined = capabilitiesFromSession(session, capabilities);
+    render(refined);
+
+    // Mesh-detection support is only known for certain once the session has
+    // actually granted (or declined) the feature, so the Tier 2 vs Tier 3
+    // room-source decision is made here, not before `launchXR`.
+    if (!roomSourceChosen) {
+      roomSourceChosen = true;
+      if (resolveTier(refined) === 3) {
+        simulatedRoom.spawn(pack, SIMULATED_ROOM_COUNT);
+      }
+    }
   });
 
   launchXR(world);
+}
+
+/**
+ * Tier 4: no WebXR at all. Builds a browser-only IWSDK world (`xr: false`)
+ * so the render loop, camera, and scene still run without a session, and
+ * fills it with the simulated room. This is what keeps the project openable
+ * on a plain laptop with no headset.
+ */
+async function enterDesktop(): Promise<void> {
+  const container = getContainer();
+
+  const world = await World.create(container, {
+    xr: false,
+    features: {
+      spatialUI: false,
+    },
+  });
+
+  addBasicLighting(world);
+
+  world.registerSystem(SimulatedRoomSystem);
+  const simulatedRoom = world.getSystem(SimulatedRoomSystem);
+  if (!simulatedRoom) {
+    throw new Error('[spatial-lingo] SimulatedRoomSystem failed to register');
+  }
+
+  simulatedRoom.spawn(loadPack(starterPack), SIMULATED_ROOM_COUNT);
 }
 
 async function main(): Promise<void> {
   const capabilities = await probeCapabilities(navigator, window);
   render(capabilities);
 
-  if (!capabilities.immersiveAR) return;
+  if (resolveTier(capabilities) === 4) {
+    await enterDesktop();
+    return;
+  }
 
   const button = document.createElement('button');
   button.textContent = 'Enter XR';
