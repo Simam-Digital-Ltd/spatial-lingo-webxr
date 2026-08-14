@@ -43,8 +43,8 @@ export class LessonMachine {
   get state(): LessonState {
     return {
       phase: this.#phase,
-      entry: this.#entry,
-      lastResult: this.#lastResult,
+      entry: this.#entry ? { ...this.#entry } : null,
+      lastResult: this.#lastResult ? { ...this.#lastResult } : null,
       attemptsRemaining: this.#attemptsRemaining,
       learnedLabels: [...this.#learned],
     };
@@ -67,8 +67,8 @@ export class LessonMachine {
   }
 
   beginListening(): void {
-    if (this.#phase !== 'presenting' && this.#phase !== 'feedback') {
-      throw new Error(`beginListening requires phase presenting or feedback, got ${this.#phase}`);
+    if (this.#phase !== 'presenting') {
+      throw new Error(`beginListening requires phase presenting, got ${this.#phase}`);
     }
     this.#phase = 'listening';
     this.#emit();

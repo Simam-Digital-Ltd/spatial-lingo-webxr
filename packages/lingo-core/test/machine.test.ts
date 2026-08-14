@@ -84,6 +84,34 @@ describe('LessonMachine', () => {
     expect(() => machine.submitAttempt('mesa')).toThrow(/listening/);
   });
 
+  it('throws when beginListening is called from feedback, leaving phase unchanged', () => {
+    machine.targetLabel('table');
+    machine.beginListening();
+    machine.submitAttempt('ventana');
+    expect(machine.state.phase).toBe('feedback');
+
+    expect(() => machine.beginListening()).toThrow(/presenting/);
+    expect(machine.state.phase).toBe('feedback');
+  });
+
+  it('completes the full correct-answer path via dismissFeedback', () => {
+    machine.targetLabel('table');
+    machine.beginListening();
+    machine.submitAttempt('mesa');
+    machine.dismissFeedback();
+
+    expect(machine.state.phase).toBe('complete');
+    expect(machine.state.learnedLabels).toEqual(['table']);
+  });
+
+  it('does not let a caller corrupt internal state through the state snapshot', () => {
+    machine.targetLabel('table');
+    const snapshot = machine.state;
+    snapshot.entry!.word = 'corrupted';
+
+    expect(machine.state.entry?.word).toBe('mesa');
+  });
+
   it('notifies subscribers and can unsubscribe', () => {
     const listener = vi.fn();
     const unsubscribe = machine.subscribe(listener);
