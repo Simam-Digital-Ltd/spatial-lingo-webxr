@@ -35,17 +35,75 @@ function extractImportSpecifiers(source: string): string[] {
   return specifiers;
 }
 
+// Blanks the literal text of a template literal while preserving the contents
+// of any `${...}` interpolations, since interpolations hold real executable
+// code (e.g. `` `${window.location.href}` ``) that the DOM-global and
+// forbidden-import checks must still see. Tracks `{`/`}` nesting depth inside
+// an interpolation so a nested object/call (e.g. `${ fn({ a: 1 }) }`) isn't
+// truncated at the first `}`. Not a full tokenizer — just enough to keep the
+// common cases correct.
+function blankTemplateLiterals(source: string): string {
+  let result = '';
+  let i = 0;
+  const n = source.length;
+  while (i < n) {
+    const ch = source[i];
+    if (ch !== '`') {
+      result += ch;
+      i++;
+      continue;
+    }
+    // Entered a template literal.
+    result += '`';
+    i++;
+    while (i < n) {
+      const c = source[i];
+      if (c === '\\') {
+        // Escaped char in literal text — blank both, keep no content.
+        i += 2;
+        continue;
+      }
+      if (c === '`') {
+        result += '`';
+        i++;
+        break;
+      }
+      if (c === '$' && source[i + 1] === '{') {
+        result += '${';
+        i += 2;
+        let depth = 1;
+        while (i < n && depth > 0) {
+          const inner = source[i];
+          if (inner === '{') depth++;
+          else if (inner === '}') depth--;
+          if (depth > 0) {
+            result += inner;
+          } else {
+            result += '}';
+          }
+          i++;
+        }
+        continue;
+      }
+      // Literal text character — blank it out.
+      i++;
+    }
+  }
+  return result;
+}
+
 // Blanks out block comments, line comments, and string/template literals so the
 // DOM-global check below doesn't trip on prose or example text (e.g. a JSDoc
 // comment mentioning "window" as an example value). Not a real tokenizer — just
 // enough to keep the common cases from producing false positives.
 function stripCommentsAndStrings(source: string): string {
-  return source
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/\/\/.*$/gm, '')
-    .replace(/'(?:\\.|[^'\\])*'/g, "''")
-    .replace(/"(?:\\.|[^"\\])*"/g, '""')
-    .replace(/`(?:\\.|[^`\\])*`/g, '``');
+  return blankTemplateLiterals(
+    source
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/.*$/gm, '')
+      .replace(/'(?:\\.|[^'\\])*'/g, "''")
+      .replace(/"(?:\\.|[^"\\])*"/g, '""'),
+  );
 }
 
 describe('lingo-core purity', () => {
@@ -77,5 +135,26 @@ describe('lingo-core purity', () => {
     const source = readFileSync(file, 'utf8');
     const codeOnly = stripCommentsAndStrings(source);
     expect(codeOnly).not.toMatch(/\b(document|window|navigator)\b/);
+  });
+
+  // Regression test: template literal interpolations (`${...}`) are real
+  // executable code, not literal text, so the stripper must preserve their
+  // contents rather than blanking the whole literal — otherwise a violation
+  // hiding inside an interpolation would silently pass the guard.
+  it('preserves template literal interpolation contents when stripping', () => {
+    expect(stripCommentsAndStrings('const s = `${window.location.href}`;')).toMatch(
+      /\bwindow\b/,
+    );
+    expect(
+      stripCommentsAndStrings('const s = `${ obj["key"] }`;'),
+    ).not.toMatch(/^const s = ``;$/);
+    // Nested braces inside an interpolation must not truncate at the first `}`.
+    expect(stripCommentsAndStrings('const s = `${ fn({ a: 1, w: window }) }`;')).toMatch(
+      /\bwindow\b/,
+    );
+    // Literal text around the interpolation is still blanked.
+    expect(stripCommentsAndStrings('const s = `hello ${x} world`;')).not.toMatch(
+      /hello|world/,
+    );
   });
 });
