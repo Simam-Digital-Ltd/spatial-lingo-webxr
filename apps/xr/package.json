@@ -1,0 +1,28 @@
+{
+  "name": "@spatial-lingo/xr",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@iwsdk/core": "0.5.3",
+    "@spatial-lingo/core": "workspace:*",
+    "three": "0.184.0"
+  },
+  "devDependencies": {
+    "@iwer/sem": "2.3.0",
+    "@iwsdk/vite-plugin-dev": "0.5.3",
+    "@types/webxr": "0.5.24",
+    "@zappar/msdf-generator": "1.2.4",
+    "iwer": "2.3.0",
+    "typescript": "5.7.3",
+    "vite": "7.3.6",
+    "vitest": "4.1.10"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "language": "es",
+  "languageName": "Spanish",
+  "entries": [
+    { "label": "table",  "word": "mesa",     "article": "la", "phonetic": "MEH-sah",       "exampleSentence": "El libro esta sobre la mesa." },
+    { "label": "couch",  "word": "sofa",     "article": "el", "phonetic": "so-FAH",        "exampleSentence": "El gato duerme en el sofa." },
+    { "label": "window", "word": "ventana",  "article": "la", "phonetic": "ben-TAH-nah",   "exampleSentence": "Abre la ventana, por favor." },
+    { "label": "door",   "word": "puerta",   "article": "la", "phonetic": "PWER-tah",      "exampleSentence": "Cierra la puerta." },
+    { "label": "floor",  "word": "suelo",    "article": "el", "phonetic": "SWEH-loh",      "exampleSentence": "El suelo esta limpio." },
+    { "label": "ceiling","word": "techo",    "article": "el", "phonetic": "TEH-choh",      "exampleSentence": "El techo es blanco." },
+    { "label": "wall",   "word": "pared",    "article": "la", "phonetic": "pah-RED",       "exampleSentence": "Hay un cuadro en la pared." },
+    { "label": "screen", "word": "pantalla", "article": "la", "phonetic": "pan-TAH-yah",   "exampleSentence": "La pantalla es grande." },
+    { "label": "lamp",   "word": "lampara",  "article": "la", "phonetic": "LAHM-pah-rah",  "exampleSentence": "Enciende la lampara." },
+    { "label": "plant",  "word": "planta",   "article": "la", "phonetic": "PLAHN-tah",     "exampleSentence": "La planta necesita agua." },
+    { "label": "bed",    "word": "cama",     "article": "la", "phonetic": "KAH-mah",       "exampleSentence": "La cama es comoda." },
+    { "label": "shelf",  "word": "estante",  "article": "el", "phonetic": "es-TAHN-teh",   "exampleSentence": "Los libros estan en el estante." },
+    { "label": "wall art", "word": "cuadro", "article": "el", "phonetic": "KWAH-droh", "exampleSentence": "El cuadro es bonito." }
+  ]
+}

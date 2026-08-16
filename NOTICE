@@ -1,0 +1,12 @@
+Spatial Lingo WebXR
+
+This project is a WebXR port of Spatial Lingo, an open-source Meta Quest
+application by Meta Platforms, Inc.
+
+Original work: https://github.com/oculus-samples/Unity-SpatialLingo
+Copyright (c) Meta Platforms, Inc. and affiliates. Licensed under the MIT License.
+
+Built with the Immersive Web SDK (https://github.com/facebook/immersive-web-sdk),
+Copyright (c) Meta Platforms, Inc. and affiliates. Licensed under the MIT License.
+
+This port is not affiliated with or endorsed by Meta Platforms, Inc.
