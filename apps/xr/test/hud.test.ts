@@ -1,7 +1,8 @@
 import { LessonMachine, loadPack, type LessonPack } from '@spatial-lingo/core';
 import { describe, expect, it } from 'vitest';
 
-import { describeFeedback, describeProgress } from '../src/hud.js';
+import type { Capabilities } from '../src/capabilities.js';
+import { describeDevice, describeFeedback, describeProgress } from '../src/hud.js';
 
 const pack: LessonPack = loadPack({
   language: 'es',
@@ -131,5 +132,46 @@ describe('describeProgress', () => {
     expect(describeProgress(1, 13).tier).toBe(1);
     expect(describeProgress(3, 13).tier).toBe(2);
     expect(describeProgress(6, 13).tier).toBe(3);
+  });
+});
+
+describe('describeDevice', () => {
+  const none: Capabilities = {
+    cameraAccess: false,
+    meshDetection: false,
+    planeDetection: false,
+    handTracking: false,
+    speechRecognition: false,
+    immersiveAR: false,
+  };
+
+  it('offers no XR route on a plain browser', () => {
+    const view = describeDevice(none);
+    expect(view.canEnterXR).toBe(false);
+    expect(view.headline).toMatch(/browser/i);
+  });
+
+  it('never describes the browser tier as degraded', () => {
+    // The welcome card is most visitors' first impression, and Tier 4 is the
+    // path most of them are on. Apologising for it there would be wrong.
+    const view = describeDevice(none);
+    expect(`${view.headline} ${view.detail}`).not.toMatch(
+      /limited|degraded|unsupported|unfortunately|sorry/i,
+    );
+  });
+
+  it('offers the XR route on a headset without mesh detection', () => {
+    const view = describeDevice({ ...none, immersiveAR: true });
+    expect(view.canEnterXR).toBe(true);
+    expect(view.detail).toMatch(/stand-in/i);
+  });
+
+  it('promises the visitor their own room only when mesh detection is granted', () => {
+    const withMesh = describeDevice({ ...none, immersiveAR: true, meshDetection: true });
+    expect(withMesh.canEnterXR).toBe(true);
+    expect(withMesh.detail).toMatch(/your own room/i);
+
+    const withoutMesh = describeDevice({ ...none, immersiveAR: true });
+    expect(withoutMesh.detail).not.toMatch(/your own room/i);
   });
 });

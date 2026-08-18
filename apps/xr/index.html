@@ -143,23 +143,83 @@
       }
       #diagnostics.show { display: block; }
 
-      #boot {
+      /* The welcome screen doubles as the boot screen: it is plain HTML, so it
+         paints on first frame, long before the world finishes building. The
+         start button stays disabled until it does. */
+      #welcome {
         position: fixed; inset: 0; z-index: 3;
-        display: grid; place-content: center; gap: 0.5rem; justify-items: center;
-        background: #0d0f14; color: var(--ink-dim); font-size: 0.9rem;
-        transition: opacity 500ms ease;
+        display: grid; place-items: center;
+        padding: 1.25rem;
+        overflow-y: auto;
+        /* A scrim, not a curtain: once the world is up, the room is visible
+           and already lit behind the card, so the first thing the visitor sees
+           is the thing they came for rather than a loading colour. */
+        background: radial-gradient(120% 90% at 50% 0%, rgba(27, 32, 48, 0.62) 0%, rgba(13, 15, 20, 0.88) 62%);
+        transition: opacity 480ms ease;
       }
-      #boot.gone { opacity: 0; pointer-events: none; }
-      #boot .mark { font-size: 2rem; }
+      #welcome.gone { opacity: 0; pointer-events: none; }
+
+      #welcome-card {
+        width: min(34rem, 100%);
+        padding: 1.6rem 1.7rem 1.5rem;
+        background: var(--panel);
+        border: 1px solid var(--stroke);
+        border-radius: 18px;
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(14px);
+      }
+
+      #welcome .mark { font-size: 2.1rem; line-height: 1; }
+      #welcome h2 {
+        margin: 0.55rem 0 0;
+        font-size: 1.45rem; font-weight: 700; letter-spacing: -0.01em;
+      }
+      #welcome .lede {
+        margin: 0.6rem 0 0;
+        font-size: 0.92rem; line-height: 1.6; color: var(--ink-dim);
+      }
+      #welcome .lede b { color: var(--ink); font-weight: 600; }
+
+      #welcome ol {
+        margin: 1.05rem 0 0; padding: 0; list-style: none;
+        display: grid; gap: 0.55rem;
+      }
+      #welcome ol li {
+        display: grid; grid-template-columns: 1.4rem 1fr; gap: 0.6rem;
+        font-size: 0.88rem; line-height: 1.5; color: var(--ink-dim);
+      }
+      #welcome ol li b { color: var(--ink); font-weight: 600; }
+      #welcome ol li span[aria-hidden] {
+        display: grid; place-items: center;
+        width: 1.4rem; height: 1.4rem; border-radius: 50%;
+        background: rgba(242, 193, 78, 0.16); color: var(--accent);
+        font-size: 0.72rem; font-weight: 700;
+      }
+
+      #welcome-device {
+        margin: 1.05rem 0 0; padding: 0.6rem 0.75rem;
+        border: 1px solid var(--stroke); border-radius: 10px;
+        background: rgba(0, 0, 0, 0.24);
+        font-size: 0.82rem; line-height: 1.5; color: var(--ink-dim);
+      }
+      #welcome-device b { color: var(--ink); font-weight: 600; }
+
+      #welcome-actions {
+        margin-top: 1.15rem;
+        display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center;
+      }
+      #welcome-note { font-size: 0.76rem; color: rgba(244, 241, 234, 0.42); }
 
       @media (max-width: 640px) {
         #brand p { display: none; }
         #progress { min-width: 9rem; }
         #progress .count { font-size: 1.3rem; }
+        #welcome-card { padding: 1.25rem 1.15rem 1.2rem; }
+        #welcome h2 { font-size: 1.25rem; }
       }
 
       @media (prefers-reduced-motion: reduce) {
-        #progress .bar i, #boot { transition: none; }
+        #progress .bar i, #welcome { transition: none; }
       }
     </style>
   </head>
@@ -211,9 +271,33 @@
 
     <div id="diagnostics"></div>
 
-    <div id="boot">
-      <div class="mark" aria-hidden="true">🌳</div>
-      <div>Building the room…</div>
+    <div id="welcome" role="dialog" aria-modal="true" aria-labelledby="welcome-title">
+      <div id="welcome-card">
+        <div class="mark" aria-hidden="true">🌳</div>
+        <h2 id="welcome-title">Welcome to Spatial Lingo <span aria-hidden="true">·</span> WebXR</h2>
+        <p class="lede">
+          A rebuild of Meta's Unity <b>Spatial Lingo</b> mixed-reality language demo, ported to
+          the open web with the Immersive Web SDK. Same idea — learn words by looking at the
+          things around you — but running as a plain web page instead of a headset-only app.
+        </p>
+        <p class="lede">
+          Learn an object's Spanish name and the language tree grows. Ten words takes it from
+          sapling to full canopy.
+        </p>
+
+        <ol>
+          <li><span aria-hidden="true">1</span><div><b>Drag</b> to look around the room, <b>scroll</b> or pinch to zoom.</div></li>
+          <li><span aria-hidden="true">2</span><div><b>Tap or click an object</b> — the couch, the lamp, the plant — to start its lesson.</div></li>
+          <li><span aria-hidden="true">3</span><div><b>Type the Spanish word</b> and press Enter. Three tries, then the answer.</div></li>
+        </ol>
+
+        <p id="welcome-device"><b>Checking your device…</b></p>
+
+        <div id="welcome-actions">
+          <button id="welcome-start" type="button" disabled>Building the room…</button>
+          <span id="welcome-note">No sign-in, nothing stored.</span>
+        </div>
+      </div>
     </div>
 
     <script type="module" src="/src/main.ts"></script>

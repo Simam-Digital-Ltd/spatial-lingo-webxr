@@ -20,7 +20,7 @@ import {
   resolveTier,
   type Capabilities,
 } from './capabilities.js';
-import { dismissBootOverlay, Hud } from './hud.js';
+import { Hud, WelcomeOverlay } from './hud.js';
 import { PALETTE } from './scene/palette.js';
 import { LessonSystem } from './systems/lesson.js';
 import { OrbitCameraSystem } from './systems/orbit-camera.js';
@@ -363,7 +363,14 @@ async function main(): Promise<void> {
     },
   );
 
-  dismissBootOverlay();
+  const welcome = new WelcomeOverlay();
+  // `?skipwelcome` exists for automated capture: the screenshot harness needs
+  // the room, not the card in front of it.
+  if (new URLSearchParams(window.location.search).has('skipwelcome')) {
+    welcome.dismiss();
+  } else {
+    welcome.ready(capabilities, () => setHint(DEFAULT_HINT));
+  }
 
   if (!capabilities.immersiveAR) return;
 

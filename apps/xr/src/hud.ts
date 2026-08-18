@@ -1,5 +1,7 @@
 import { progressionFor, type LessonPack, type LessonState } from '@spatial-lingo/core';
 
+import { resolveTier, type Capabilities } from './capabilities.js';
+
 /**
  * The 2D heads-up display: prompt card, attempt box, feedback, progress.
  *
@@ -238,10 +240,120 @@ export class Hud {
   }
 }
 
-/** Fades out the boot overlay once there is something behind it to see. */
-export function dismissBootOverlay(): void {
-  const boot = document.getElementById('boot');
-  if (!boot) return;
-  boot.classList.add('gone');
-  setTimeout(() => boot.remove(), 600);
+export interface DeviceView {
+  /** One-line verdict, shown in bold on the welcome card. */
+  headline: string;
+  /** What that means for what the visitor is about to do. */
+  detail: string;
+  /** Whether the welcome card should offer a "start in mixed reality" route. */
+  canEnterXR: boolean;
+}
+
+/**
+ * Explain, in the visitor's terms, which capability tier their device landed on.
+ *
+ * The tier numbers themselves are an implementation detail from the spec's
+ * capability table, and they mean nothing to someone who just opened a link. So
+ * this says what the device *can do* rather than what it scored, and it never
+ * apologises for the browser tier — that path is the one most visitors will
+ * take, and it is a complete experience, not a degraded one.
+ */
+export function describeDevice(capabilities: Capabilities): DeviceView {
+  const tier = resolveTier(capabilities);
+
+  if (tier === 4) {
+    return {
+      headline: 'Running in your browser',
+      detail:
+        'No headset needed. The room below is rendered live, and the whole lesson loop works with a mouse or a fingertip.',
+      canEnterXR: false,
+    };
+  }
+
+  if (tier === 3) {
+    return {
+      headline: 'Headset detected',
+      detail:
+        'Mixed reality is available, but this device does not report room geometry, so the headset view places stand-in objects around you instead of using your furniture.',
+      canEnterXR: true,
+    };
+  }
+
+  return {
+    headline: 'Headset with room scan detected',
+    detail:
+      'You can explore here first, then step into mixed reality and the lesson objects will attach to your own room.',
+    canEnterXR: true,
+  };
+}
+
+/**
+ * The welcome screen, which is also the boot screen.
+ *
+ * It is static markup in `index.html` rather than something built here, so it
+ * paints on the first frame — well before the WebGL world is ready. Building
+ * the world takes long enough on a cold load that an empty page in the meantime
+ * reads as a broken link, and this way the visitor spends that time reading
+ * what the project is. The start button stays disabled until `ready()` says
+ * there is actually a room behind the card.
+ */
+export class WelcomeOverlay {
+  readonly #root: HTMLElement | null;
+  readonly #start: HTMLButtonElement | null;
+  readonly #device: HTMLElement | null;
+  #dismissed = false;
+
+  constructor() {
+    this.#root = document.getElementById('welcome');
+    const start = document.getElementById('welcome-start');
+    this.#start = start instanceof HTMLButtonElement ? start : null;
+    this.#device = document.getElementById('welcome-device');
+  }
+
+  /**
+   * Enable the card once the world is up, and say what the device can do.
+   *
+   * `onStart` fires when the visitor dismisses the card, so the caller can
+   * focus the room or kick off anything that should wait for a real gesture.
+   */
+  ready(capabilities: Capabilities, onStart: () => void): void {
+    const view = describeDevice(capabilities);
+    if (this.#device) {
+      this.#device.textContent = '';
+      const headline = document.createElement('b');
+      headline.textContent = view.headline;
+      this.#device.append(headline, ` — ${view.detail}`);
+    }
+
+    if (this.#start) {
+      this.#start.disabled = false;
+      this.#start.textContent = view.canEnterXR ? 'Explore the room' : 'Start exploring';
+      this.#start.addEventListener('click', () => {
+        this.dismiss();
+        onStart();
+      });
+      this.#start.focus();
+    }
+
+    // Escape is the conventional way out of a modal, and a visitor who has
+    // already read the card should not have to aim at a button to get past it.
+    window.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !this.#dismissed) {
+        this.dismiss();
+        onStart();
+      }
+    });
+  }
+
+  dismiss(): void {
+    if (this.#dismissed) return;
+    this.#dismissed = true;
+    const root = this.#root;
+    if (!root) return;
+    root.classList.add('gone');
+    // Removed rather than left transparent: it covers the whole viewport, and
+    // an invisible element that still exists is one CSS regression away from
+    // swallowing every click in the room.
+    setTimeout(() => root.remove(), 600);
+  }
 }
