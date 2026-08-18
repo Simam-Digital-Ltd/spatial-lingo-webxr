@@ -57,7 +57,16 @@ export function dismissFeedbackSafely(machine: LessonMachine): boolean {
   return true;
 }
 
-/** Pure render: lesson state to the on-screen panel's HTML. Testable without a DOM. */
+/**
+ * Pure render: lesson state to the diagnostics readout's HTML.
+ *
+ * This is the raw machine state, shown in the corner behind `?debug` — the
+ * learner-facing UI is built by `Hud` from the same state. Keeping a literal
+ * dump of the state machine on screen is what made the phase-guard bugs in
+ * `selectTargetSafely` and friends findable at all during the port.
+ *
+ * Testable without a DOM.
+ */
 export function renderLessonPanel(state: LessonState): string {
   const progression = progressionFor(state.learnedLabels.length);
   const lines: string[] = [
@@ -83,6 +92,7 @@ export function renderLessonPanel(state: LessonState): string {
  * touching IWSDK.
  */
 export class LessonSystem extends createSystem({}) {
+  readonly #listeners = new Set<(state: LessonState) => void>();
   #machine: LessonMachine | null = null;
 
   start(pack: LessonPack): void {
@@ -112,9 +122,16 @@ export class LessonSystem extends createSystem({}) {
     return dismissFeedbackSafely(machine);
   }
 
+  /** Subscribe to lesson state. Replays the current state immediately. */
+  onState(listener: (state: LessonState) => void): void {
+    this.#listeners.add(listener);
+    const machine = this.#machine;
+    if (machine) listener(machine.state);
+  }
+
   #render(state: LessonState): void {
-    const panel = document.getElementById('lesson');
-    if (!panel) return;
-    panel.innerHTML = renderLessonPanel(state);
+    for (const listener of this.#listeners) listener(state);
+    const panel = document.getElementById('diagnostics');
+    if (panel) panel.innerHTML = renderLessonPanel(state);
   }
 }

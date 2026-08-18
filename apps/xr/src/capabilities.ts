@@ -34,10 +34,14 @@ export function resolveTier(capabilities: Capabilities): Tier {
   // node_modules/@iwsdk/core/dist/init/xr.d.ts) only exposes `handTracking`,
   // `anchors`, `hitTest`, `planeDetection`, `meshDetection`, `depthSensing`,
   // `layers`, and `unbounded` — there is no flag to request the
-  // `camera-access` WebXR feature. Reaching Tier 1 needs either an IWSDK
-  // upgrade that adds camera-access support, or a later phase of our own that
-  // requests it some other way; until then this branch is dead in practice
-  // and every immersive-AR + mesh-detection device lands on Tier 2.
+  // `camera-access` WebXR feature. IWSDK's world-level `features.camera` flag
+  // is not that flag: `camera-system.js` implements it with
+  // `navigator.mediaDevices.getUserMedia`, which is an ordinary webcam stream,
+  // not the pose-aligned passthrough frames `camera-access` grants. Reaching
+  // Tier 1 needs either an IWSDK upgrade that adds camera-access support, or a
+  // later phase of our own that requests it some other way; until then this
+  // branch is dead in practice and every immersive-AR + mesh-detection device
+  // lands on Tier 2.
   return capabilities.cameraAccess ? 1 : 2;
 }
 
