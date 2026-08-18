@@ -98,6 +98,10 @@ If you're a Unity developer looking at WebXR for the first time, start with
   Scripting graph instead of any `.cs` file.
 - [`04-scene-understanding.md`](docs/migration/04-scene-understanding.md) — MRUK vs. WebXR mesh
   detection, and why this is a redesign of the core mechanic, not a port of it.
+- [`05-tips-and-gotchas.md`](docs/migration/05-tips-and-gotchas.md) — the grab bag: what does and
+  does not cross from a Unity project, handedness and Euler order, smoothness vs. roughness,
+  shadow frustums, why there is no TextMeshPro, IWSDK-specific traps, and how to test any of it
+  without a headset.
 
 ## Credit and license
 
