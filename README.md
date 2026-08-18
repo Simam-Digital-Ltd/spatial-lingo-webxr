@@ -6,6 +6,9 @@ This port rebuilds the app on [Meta's Immersive Web SDK](https://github.com/face
 (IWSDK) instead of Unity, so it runs in a browser — on a Quest, or on a plain laptop with no
 headset at all.
 
+**Try it now: <https://spatial-lingo-webxr.web.app>** — no install, no headset, no account. It
+runs in any modern browser; on a Quest the same URL offers a mixed-reality session.
+
 It is a redesign in places, not a straight port. The clearest example: the original finds lesson
 targets by running YOLO object detection over the passthrough camera feed; this port finds them
 from WebXR's scene-understanding semantic labels instead — no camera, no inference model, but a
@@ -22,12 +25,12 @@ sustain, degrading gracefully rather than requiring a specific device:
 | --- | --- | --- |
 | 1 | `camera-access` WebXR feature, on top of mesh detection | **Structurally unreachable in this build.** IWSDK 0.5.3's session-feature options (`XRFeatureOptions`) have no flag to request `camera-access` at all, so it is never requested and can never come back granted — see `apps/xr/src/capabilities.ts:31`. The four-tier design is three tiers in practice until IWSDK adds that flag or a later phase requests the feature another way. |
 | 2 | `immersive-ar` + mesh detection granted | Real scanned-room meshes carrying a WebXR semantic label become lesson targets. If mesh detection is granted but the room was never scanned (no meshes appear), the app waits 4 seconds and then falls back to Tier 3/4's stand-in targets rather than sitting empty. |
-| 3 | `immersive-ar` granted, no mesh detection | Six stand-in boxes spawn on an arc in front of the player, each tagged with a real vocabulary word. |
-| 4 | No WebXR at all | A plain desktop/browser scene with the same stand-in boxes. This is what makes the project runnable and reviewable without a headset. |
+| 3 | `immersive-ar` granted, no mesh detection | Six stand-in props spawn on an arc in front of the player, each tagged with a real vocabulary word and carrying a floating word label. |
+| 4 | No WebXR at all | The **showroom**: a furnished procedural apartment with thirteen labelled objects, a turntable camera, hover highlighting, and the language tree growing as words are learned. This is the version most people who open the link will see, so it is built as a first-class experience rather than a fallback. |
 
-**Selection input is desktop-only, in every tier.** Tiers 2 and 3 spawn and tag targets in a
+**Selection input is pointer-only, in every tier.** Tiers 2 and 3 spawn and tag targets in a
 passthrough session, but `TargetSelectionSystem` (`apps/xr/src/systems/target-selection.ts`)
-only wires up a desktop mouse `pointerdown` raycast, and the word-attempt input is a DOM
+only wires up a screen-pointer raycast (mouse and touch), and the word-attempt input is a DOM
 `<input>` element with no `dom-overlay` WebXR feature requested to make it reachable in-headset.
 So while a real Quest session will correctly spawn and label targets, there is currently no way
 to select one or submit an attempt from inside the headset — the lesson loop only runs
@@ -49,11 +52,11 @@ pnpm dev
 ```
 
 No API keys, no accounts, no headset required. This opens the Vite dev server for the `xr` app;
-on a plain browser tab it runs Tier 4 with stand-in targets, so you can try the full lesson loop
-— click a target, type the word, get scored — immediately.
+on a plain browser tab it runs Tier 4's showroom, so you can try the full lesson loop — click an
+object, type the word, get scored, watch the tree grow — immediately.
 
 ```bash
-pnpm test        # 51 tests in packages/lingo-core, 55 in apps/xr
+pnpm test        # 51 tests in packages/lingo-core, 78 in apps/xr
 pnpm typecheck    # both packages
 pnpm build        # production build of apps/xr
 ```
@@ -104,3 +107,25 @@ both open-source projects by Meta Platforms, Inc. and affiliates, licensed under
 License. See [`NOTICE`](NOTICE) for the full attribution and links to both upstream projects.
 
 This project itself is licensed under the MIT License. See [`LICENSE`](LICENSE) for the full text.
+
+## Deploying
+
+The live build is on Firebase Hosting. `firebase.json` is committed — it holds only hosting
+rules, cache headers, and a `Permissions-Policy` that keeps `xr-spatial-tracking` available while
+denying camera and geolocation. It contains no credentials.
+
+`.firebaserc`, which names the deploy target project, is **deliberately git-ignored**, along with
+service-account JSON, `.env*`, and the usual key file extensions — see `.gitignore`. This
+repository is public, so nothing that grants access to a project is ever committed. To deploy
+your own copy:
+
+```bash
+firebase login
+firebase projects:create your-project-id
+echo '{"projects":{"default":"your-project-id"}}' > .firebaserc
+pnpm --filter @spatial-lingo/xr build
+firebase deploy --only hosting
+```
+
+There are no build-time secrets: the vocabulary pack is a static JSON file bundled into the app,
+which is why the demo needs no key wall and no backend.
