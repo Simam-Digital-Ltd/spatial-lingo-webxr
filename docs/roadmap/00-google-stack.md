@@ -49,10 +49,104 @@ A single Cloud Function (or Cloud Run service) in the existing Firebase project:
   size. A public demo with an unmetered LLM behind it is a bill waiting to happen.
 - Returns a structured verdict, never raw model text passed straight to the UI.
 
-**Decision to make before Phase 2 starts:** accept the proxy and the running cost, or keep the
-project keyless and stop after the two no-backend capabilities. Both are legitimate. The
-no-backend subset still delivers spoken prompts, spoken answers, and live object recognition —
-which is most of what makes the original feel alive.
+---
+
+## Key strategy: three tiers, and the model is the only metered thing
+
+Worth narrowing the problem before solving it. Voice is pre-rendered at build time or runs in the
+browser; vision runs on-device in WASM. **None of that is metered.** The only thing that ever costs
+money per use is the language model, and only on the sentence-grading and word-cloud paths.
+
+So the app ships with three levels, and the first one needs no key at all.
+
+### Tier A — no key, and it never expires
+
+The default for every visitor. Deterministic Levenshtein scoring (already built and tested),
+pre-rendered pronunciation audio, on-device object recognition, and **pre-generated word clouds
+committed as JSON**. The pack is 13 entries; its word clouds are generated once, offline, by a
+script that runs on a developer machine, and are static content from then on.
+
+This is the important design move, not a fallback: it takes the entire `/wordcloud` endpoint out of
+the runtime. A demo that calls a model on every lesson start is paying repeatedly to produce the
+same eight words.
+
+Tier A is what the link does when the budget is gone, when the proxy is down, and in five years
+when nobody is paying the bill.
+
+### Tier B — the shared demo key, on a hard leash
+
+For the "say a whole sentence and have it actually understood" moment, which is the only thing
+Tier A genuinely cannot do.
+
+- **Firebase App Check** so only the deployed app can call the endpoint. It is not airtight — a
+  determined person can extract a token — but it removes casual scraping entirely.
+- **A global daily budget counter**, checked and incremented in a transaction before each model
+  call. When the day's allowance is spent, the endpoint returns "unavailable" and the app silently
+  drops to Tier A. Set it low: a few hundred calls a day is a generous demo and a trivial bill.
+- **A per-client daily cap** keyed on App Check token and IP, so one visitor cannot spend the
+  global budget alone. Ten to twenty grades a day per person is far more than a demo visit needs.
+- **A hard cap on request size** — reject anything over a couple of hundred characters before it
+  reaches the model. This is a cost control and an abuse control at once: a capped input cannot be
+  used to smuggle a long prompt through the endpoint.
+
+**Do not rely on Google Cloud budget alerts as a stop.** They notify; they do not halt spend. The
+only reliable hard stop is the counter in your own code. Alerts are the second line, not the first.
+
+### Tier C — bring your own key
+
+For anyone who wants it uncapped, including us during development.
+
+- A settings panel takes a Gemini API key, stores it in `localStorage`, and calls Google directly
+  from the browser. It never touches our proxy and never reaches our server.
+- The key stays on that device. Say so in the copy, and give it a visible "forget this key"
+  control.
+- Link out to how to create a key, and state plainly that it will be readable by anyone with
+  access to that browser profile — a browser is not a secret store, and the honest framing is what
+  makes this a reasonable thing to offer at all.
+- Verify at implementation: whether the Generative Language endpoint permits direct browser calls
+  from an arbitrary origin, and which key restrictions Google supports for it. If browser-direct
+  calls are not workable, the same key can be passed through the existing proxy per request
+  instead — the proxy uses it and never persists it.
+
+BYOK also settles the fork-and-deploy case: anyone running their own copy supplies their own key
+and owes us nothing.
+
+---
+
+## Spending as few tokens as possible
+
+Every technique below removes calls rather than shrinking them, which is the only optimisation
+that scales.
+
+1. **Never call the model for a single word.** Comparing one word against one expected answer is
+   what the existing scorer does, correctly and for free. The model is reserved for free-form
+   sentences, which is one path in the app.
+2. **Precompute everything that does not depend on the learner.** Word clouds, related words and
+   example sentences are functions of the pack, not of the session. Generate offline, commit the
+   JSON, spend nothing at runtime.
+3. **Cache on a hash of (target word, normalised transcript).** Learners converge on the same
+   handful of sentences, so a shared cache turns the popular cases into zero-token responses — and
+   the normalisation function for that hash already exists in the scorer.
+4. **Send the one entry, never the pack.** The prompt needs the target word and the transcript. It
+   does not need thirteen vocabulary entries, the tier table, or conversation history — there is no
+   conversation.
+5. **Constrain the output to a small schema** — a verdict from a fixed set plus one short feedback
+   sentence — and set an explicit low output-token ceiling. No reasoning traces, no restatement of
+   the question, no encouragement paragraph.
+6. **Use the cheapest model tier that can do it.** Deciding whether a short Spanish sentence uses a
+   word correctly is not a frontier-model task. The smallest current Flash-class model is the right
+   default, and worth re-benchmarking rather than assuming.
+7. **Truncate the transcript before sending**, to the same cap the endpoint enforces.
+8. **Check the free tier first.** The Gemini API publishes free-tier rate limits that may cover a
+   demo outright. Verify the current limits before provisioning paid billing at all.
+
+Rough shape of one grade call under this design: a short system instruction, one target word and
+one capped transcript in; a two-field JSON object out. That is a couple of hundred tokens round
+trip, which at current Flash-class pricing makes a day of demo traffic a rounding error — but
+verify current rates rather than trusting that sentence.
+
+**Measure first, then set the leash.** Log tokens per call from day one, watch the first week, and
+set the daily budget from observed usage rather than from an estimate.
 
 ---
 
