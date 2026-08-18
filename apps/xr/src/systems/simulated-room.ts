@@ -1,12 +1,19 @@
-import { BoxGeometry, createSystem, Mesh, MeshStandardMaterial } from '@iwsdk/core';
+import { Box3, createSystem } from '@iwsdk/core';
 import type { LessonPack } from '@spatial-lingo/core';
 import { LessonTarget } from '../components/lesson-target.js';
+import { WordLabel } from '../scene/labels.js';
+import { buildProp, fitTo } from '../scene/props.js';
 
 const ARC_RADIUS = 2.5;
 const ARC_SPAN = Math.PI * 0.8;
-const BOX_SIZE = 0.4;
 
-/** A single stand-in box's world-space X/Z offset from the player. */
+/** Largest dimension a floating prop is scaled to, in metres. */
+const PROP_SIZE = 0.55;
+
+/** Height of the arc above the floor, in metres — roughly waist to chest height. */
+const ARC_HEIGHT = 1.0;
+
+/** A single stand-in prop's world-space X/Z offset from the player. */
 export interface ArcPosition {
   x: number;
   z: number;
@@ -48,31 +55,60 @@ export function arcPositions(
  * entities carrying `LessonTarget`, so everything downstream is tier-agnostic.
  */
 export class SimulatedRoomSystem extends createSystem({}) {
+  readonly #labels = new Map<string, WordLabel>();
+
   spawn(pack: LessonPack, count: number): void {
     const entries = pack.entries.slice(0, count);
     const positions = arcPositions(entries.length);
-    const geometry = new BoxGeometry(BOX_SIZE, BOX_SIZE, BOX_SIZE);
+    let placed = 0;
 
     entries.forEach((entry, index) => {
       const position = positions[index];
       if (!position) return;
 
-      const mesh = new Mesh(geometry, new MeshStandardMaterial({ color: 0x4a9eff }));
-      mesh.position.set(position.x, 1.2, position.z);
+      // The same procedural props the desktop showroom uses, scaled down and
+      // floated at eye level. A headset in this tier is showing passthrough of
+      // the learner's real room, so there is no shell around them — just the
+      // objects, hanging in their actual space.
+      const prop = buildProp(entry.label);
+      if (!prop) return;
+      fitTo(prop, PROP_SIZE);
+      prop.position.x = position.x;
+      prop.position.z = position.z;
+      prop.position.y += ARC_HEIGHT;
+      // Turn each prop to face the learner standing at the arc's centre.
+      prop.rotation.y = Math.atan2(position.x, position.z) + Math.PI;
 
       // Uses World.createTransformEntity rather than a bare createEntity() +
       // manual object3D assignment: it wires the Transform/Visibility
       // components and parents the mesh under the active level automatically,
       // matching how every other renderable entity in this app is created.
-      const entity = this.world.createTransformEntity(mesh);
+      const entity = this.world.createTransformEntity(prop);
       entity.addComponent(LessonTarget, {
         label: entry.label,
         word: entry.word,
         learned: false,
       });
-      console.info('[spatial-lingo] simulated target:', entry.label, '->', entry.word);
+
+      prop.updateMatrixWorld(true);
+      const top = new Box3().setFromObject(prop).max.y;
+      const wordLabel = new WordLabel({
+        word: entry.word,
+        article: entry.article,
+        label: entry.label,
+      });
+      wordLabel.sprite.position.set(position.x, top + 0.18, position.z);
+      this.world.createTransformEntity(wordLabel.sprite);
+      this.#labels.set(entry.label, wordLabel);
+
+      placed += 1;
     });
 
-    console.info('[spatial-lingo] simulated room spawned', entries.length, 'stand-in target(s)');
+    console.info('[spatial-lingo] simulated room spawned', placed, 'stand-in target(s)');
+  }
+
+  /** Reveals the target-language word above a stand-in prop. */
+  reveal(label: string): void {
+    this.#labels.get(label)?.reveal();
   }
 }

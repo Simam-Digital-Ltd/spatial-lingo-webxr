@@ -3,5 +3,46 @@ dist/
 .vercel/
 .turbo/
 *.log
+
+# Reference checkouts and generated asset workspaces (large, and not ours to
+# redistribute).
 reference/
 .iwsdk/
+.assets-ref/
+.assets-build/
+.img2threejs/
+
+# ---------------------------------------------------------------------------
+# Secrets. This repository is public: nothing below may ever be committed.
+# ---------------------------------------------------------------------------
+
+# Environment files. The negation keeps a committed `.env.example` template
+# possible without whitelisting real values.
+.env
+.env.*
+!.env.example
+
+# Firebase. `.firebaserc` names the deploy target project, and service-account
+# JSON keys grant write access to it — neither belongs in a public repo.
+# `firebase.json` itself is safe and IS committed: it only describes hosting
+# rules, no credentials.
+.firebaserc
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+firestore-debug.log
+ui-debug.log
+*-firebase-adminsdk-*.json
+serviceAccountKey.json
+service-account*.json
+google-services.json
+GoogleService-Info.plist
+
+# Generic credential shapes, so a stray key file is ignored by default rather
+# than by remembering to add it.
+*.pem
+*.key
+*.p8
+*.p12
+*.keystore
+secrets/
