@@ -21,7 +21,9 @@ import {
   type Capabilities,
 } from './capabilities.js';
 import { Hud, WelcomeOverlay } from './hud.js';
+import { ProgressStore } from './progress.js';
 import { PALETTE } from './scene/palette.js';
+import { Listener, Speaker } from './speech.js';
 import { LessonSystem } from './systems/lesson.js';
 import { OrbitCameraSystem } from './systems/orbit-camera.js';
 import { ROOM_SCAN_GRACE_PERIOD_MS, RoomSourceController } from './systems/room-fallback.js';
@@ -169,13 +171,22 @@ function wireLessonLoop(
   hud.setPack(pack);
   hud.setTotal(pack.entries.length);
 
-  lesson.start(pack);
+  // Words learned in an earlier visit. Restored before the machine starts so
+  // the tree, the counter and the revealed labels all come back at the tier
+  // the learner left them at, rather than animating up from zero.
+  const progress = new ProgressStore(pack);
+  const restored = progress.load();
+  lesson.start(pack, restored);
   selection.onSelect((label) => lesson.selectTarget(label));
   selection.onHover(onHover);
 
-  let seenLearned = 0;
+  // Restored words are already learned, so they must not be re-revealed as if
+  // they had just been got right — the high-water mark starts where the last
+  // session ended.
+  let seenLearned = restored.length;
   lesson.onState((state: LessonState) => {
     hud.render(state);
+    progress.save(state.learnedLabels);
 
     // `learnedLabels` only ever grows, so anything past the high-water mark is
     // new. Driving reveals off the state rather than off the submit call site
@@ -191,10 +202,46 @@ function wireLessonLoop(
     room?.setLearnedCount?.(labels.length);
   });
 
-  hud.bindInput((text) => {
+  // Restored words still have to be *shown* as learned: the reveal path above
+  // deliberately only fires for words past the high-water mark, so the first
+  // frame after a refresh would otherwise show every label still hidden.
+  if (restored.length > 0) {
+    const room = getRoom();
+    for (const label of restored) room?.reveal(label);
+    room?.setLearnedCount?.(restored.length);
+  }
+
+  const submit = (text: string): void => {
     if (!lesson.submit(text)) return;
     setTimeout(() => lesson.dismiss(), FEEDBACK_DWELL_MS);
-  });
+  };
+  hud.bindInput(submit);
+
+  // Speaking and hearing, using only what the browser already ships. Both
+  // controls stay hidden unless the API behind them is actually present, so a
+  // browser without them shows exactly the interface that shipped before.
+  const speaker = new Speaker(pack);
+  if (speaker.isAvailable()) {
+    let spoken: LessonState['entry'] = null;
+    lesson.onState((state) => {
+      spoken = state.entry;
+    });
+    hud.enableSpeaking(() => {
+      if (spoken) speaker.speak(spoken);
+    });
+  }
+
+  const listener = new Listener(pack);
+  if (listener.isAvailable()) {
+    hud.enableListening(() => {
+      if (listener.state === 'listening') {
+        listener.stop();
+        return;
+      }
+      hud.setListening(true);
+      listener.start(submit, () => hud.setListening(false));
+    });
+  }
 }
 
 /**

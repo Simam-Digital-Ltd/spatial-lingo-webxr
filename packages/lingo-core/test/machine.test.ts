@@ -124,3 +124,35 @@ describe('LessonMachine', () => {
     expect(listener).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('restoring learned words', () => {
+  it('starts with the words from a previous session', () => {
+    const machine = new LessonMachine(pack, { learnedLabels: ['table'] });
+    expect(machine.state.learnedLabels).toEqual(['table']);
+  });
+
+  it('ignores labels the pack does not contain', () => {
+    // A stored list outlives the pack that produced it, and a pack can lose
+    // entries between visits.
+    const machine = new LessonMachine(pack, { learnedLabels: ['table', 'helicopter'] });
+    expect(machine.state.learnedLabels).toEqual(['table']);
+  });
+
+  it('ignores duplicates', () => {
+    const machine = new LessonMachine(pack, { learnedLabels: ['table', 'table'] });
+    expect(machine.state.learnedLabels).toEqual(['table']);
+  });
+
+  it('does not re-add a restored word when it is learned again', () => {
+    const machine = new LessonMachine(pack, { learnedLabels: ['table'] });
+    machine.targetLabel('table');
+    machine.beginListening();
+    machine.submitAttempt('mesa');
+    machine.dismissFeedback();
+    expect(machine.state.learnedLabels).toEqual(['table']);
+  });
+
+  it('starts empty when given nothing', () => {
+    expect(new LessonMachine(pack).state.learnedLabels).toEqual([]);
+  });
+});

@@ -95,8 +95,12 @@ export class LessonSystem extends createSystem({}) {
   readonly #listeners = new Set<(state: LessonState) => void>();
   #machine: LessonMachine | null = null;
 
-  start(pack: LessonPack): void {
-    const machine = new LessonMachine(pack);
+  /**
+   * Build the lesson machine, optionally seeded with words from a previous
+   * visit. Unknown labels are dropped by the machine itself.
+   */
+  start(pack: LessonPack, learnedLabels: readonly SemanticLabel[] = []): void {
+    const machine = new LessonMachine(pack, { learnedLabels });
     this.#machine = machine;
     machine.subscribe((state) => this.#render(state));
   }

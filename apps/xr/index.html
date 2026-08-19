@@ -115,6 +115,39 @@
       }
       button:disabled { opacity: 0.5; cursor: default; }
       button.ghost { background: transparent; color: var(--ink); border: 1px solid var(--stroke); }
+      button[hidden] { display: none; }
+
+      button.icon {
+        padding: 0.65rem 0.8rem;
+        background: transparent;
+        color: var(--ink);
+        border: 1px solid var(--stroke);
+        font-size: 1rem;
+        line-height: 1;
+      }
+      button.icon:hover:not(:disabled) { border-color: var(--accent); }
+      /* Pulses while the microphone is open, so it is never ambiguous whether
+         the browser is currently listening. */
+      button.icon.active {
+        border-color: var(--bad);
+        background: rgba(232, 121, 111, 0.16);
+        animation: pulse 1.4s ease-in-out infinite;
+      }
+      @keyframes pulse { 50% { opacity: 0.55; } }
+
+      button.linkish {
+        margin-top: 0.55rem;
+        padding: 0;
+        background: none;
+        color: var(--ink-dim);
+        font-size: 0.82rem;
+        font-weight: 500;
+      }
+      button.linkish:hover { color: var(--accent); }
+
+      @media (prefers-reduced-motion: reduce) {
+        button.icon.active { animation: none; }
+      }
 
       #feedback { margin-top: 0.6rem; font-size: 0.88rem; line-height: 1.5; display: none; }
       #feedback.show { display: block; }
@@ -256,8 +289,17 @@
               spellcheck="false"
               placeholder="Type the Spanish word, then press Enter"
             />
+            <!-- Both icon buttons stay hidden until the browser is confirmed to
+                 support the API behind them. A control that does nothing is
+                 worse than one that is not there. -->
+            <button id="listen" class="icon" type="button" hidden title="Say it instead" aria-label="Answer by speaking">
+              <span aria-hidden="true">🎤</span>
+            </button>
             <button id="submit" type="button">Check</button>
           </div>
+          <button id="speak" class="linkish" type="button" hidden>
+            <span aria-hidden="true">🔊</span> Hear the answer
+          </button>
           <div id="feedback"></div>
         </div>
 

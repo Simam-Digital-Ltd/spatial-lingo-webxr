@@ -15,6 +15,17 @@ export interface LessonState {
 export interface LessonMachineOptions {
   /** Attempts allowed per lesson before it closes unlearned. Defaults to 3. */
   maxAttempts?: number;
+  /**
+   * Words already learned in an earlier session.
+   *
+   * Restoring at construction rather than through a `restore()` method is
+   * deliberate: `#learned` only ever grows, and every consumer treats it as a
+   * high-water mark, so a machine that gains history mid-run would look like
+   * several words being learned at once. Anything not in the pack, and any
+   * duplicate, is dropped — a stored list outlives the pack that produced it,
+   * and a pack can lose entries between visits.
+   */
+  learnedLabels?: readonly SemanticLabel[];
 }
 
 /**
@@ -38,6 +49,12 @@ export class LessonMachine {
   constructor(pack: LessonPack, options: LessonMachineOptions = {}) {
     this.#pack = pack;
     this.#maxAttempts = options.maxAttempts ?? 3;
+
+    for (const label of options.learnedLabels ?? []) {
+      if (this.#learned.includes(label)) continue;
+      if (!findEntry(pack, label)) continue;
+      this.#learned.push(label);
+    }
   }
 
   get state(): LessonState {

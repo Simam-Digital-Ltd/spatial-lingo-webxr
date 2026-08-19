@@ -119,12 +119,30 @@ export function describeProgress(learned: number, total: number): ProgressView {
   };
 }
 
+/**
+ * Whether it is safe to offer to say the word out loud.
+ *
+ * Playing the target word is the same as printing it: it hands over the
+ * answer. `describeFeedback` is careful never to leak the word while tries
+ * remain, and an audio button would walk straight around that. So the offer
+ * only appears once the answer is already on screen — after a correct answer,
+ * or after the last try has been spent and the word has been revealed.
+ */
+export function shouldOfferAudio(state: LessonState): boolean {
+  if (!state.entry) return false;
+  if (state.phase !== 'feedback' && state.phase !== 'complete') return false;
+  if (state.lastResult?.verdict === 'correct') return true;
+  return state.attemptsRemaining <= 0;
+}
+
 interface HudElements {
   lesson: HTMLElement;
   promptWord: HTMLElement;
   promptHint: HTMLElement;
   attempt: HTMLInputElement;
   submit: HTMLButtonElement;
+  listen: HTMLButtonElement;
+  speak: HTMLButtonElement;
   feedback: HTMLElement;
   hint: HTMLElement;
   learnedCount: HTMLElement;
@@ -142,6 +160,8 @@ function mustFind<T extends HTMLElement>(id: string): T {
 export class Hud {
   readonly #elements: HudElements;
   #total = 0;
+  #placeholder = 'Type the word';
+  #speakAvailable = false;
 
   constructor() {
     this.#elements = {
@@ -150,6 +170,8 @@ export class Hud {
       promptHint: mustFind('prompt-hint'),
       attempt: mustFind<HTMLInputElement>('attempt'),
       submit: mustFind<HTMLButtonElement>('submit'),
+      listen: mustFind<HTMLButtonElement>('listen'),
+      speak: mustFind<HTMLButtonElement>('speak'),
       feedback: mustFind('feedback'),
       hint: mustFind('hint'),
       learnedCount: mustFind('learned-count'),
@@ -186,10 +208,43 @@ export class Hud {
     this.#elements.lesson.addEventListener('pointerdown', (event) => event.stopPropagation());
   }
 
+  /**
+   * Reveal the microphone button and route it to `onListen`.
+   *
+   * Called only when speech recognition is actually available — the button
+   * ships hidden, so a browser without the API simply never sees it.
+   */
+  enableListening(onListen: () => void): void {
+    const { listen } = this.#elements;
+    listen.hidden = false;
+    listen.addEventListener('click', onListen);
+  }
+
+  /** Shows the microphone as open, or not. */
+  setListening(listening: boolean): void {
+    const { listen, attempt } = this.#elements;
+    listen.classList.toggle('active', listening);
+    listen.title = listening ? 'Listening…' : 'Say it instead';
+    attempt.placeholder = listening ? 'Listening…' : this.#placeholder;
+  }
+
+  /**
+   * Route the "hear it" button to `onSpeak`, and allow it to appear.
+   *
+   * Availability is recorded rather than acted on: `render` decides when the
+   * button is actually shown, because offering audio too early gives away the
+   * answer. See `shouldOfferAudio`.
+   */
+  enableSpeaking(onSpeak: () => void): void {
+    this.#speakAvailable = true;
+    this.#elements.speak.addEventListener('click', onSpeak);
+  }
+
   /** Announces what the pack is called, for the placeholder copy. */
   setPack(pack: LessonPack): void {
     // Short enough to survive a 390 px portrait phone without ellipsis.
-    this.#elements.attempt.placeholder = `Type the ${pack.languageName} word`;
+    this.#placeholder = `Type the ${pack.languageName} word`;
+    this.#elements.attempt.placeholder = this.#placeholder;
   }
 
   render(state: LessonState): void {
@@ -199,6 +254,8 @@ export class Hud {
       promptHint,
       attempt,
       submit,
+      listen,
+      speak,
       feedback,
       hint,
       learnedCount,
@@ -220,7 +277,12 @@ export class Hud {
     const listening = state.phase === 'listening';
     attempt.disabled = !listening;
     submit.disabled = !listening;
+    listen.disabled = !listening;
+    // Focusing the box on a phone opens the on-screen keyboard over the room.
+    // Acceptable while typing is the only way in; revisit if that changes.
     if (listening) attempt.focus();
+
+    speak.hidden = !(this.#speakAvailable && shouldOfferAudio(state));
 
     const view = describeFeedback(state);
     feedback.classList.toggle('show', view.tone !== 'none');
