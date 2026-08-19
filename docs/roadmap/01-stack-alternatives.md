@@ -37,12 +37,12 @@ Wonderland — are all further from where this code already sits, not closer.
 | XR engine | IWSDK 0.5.3 + three.js r184 | none exists | **Keep** |
 | Hosting | Firebase Hosting | — | **Keep**, already Google |
 | Renderer | WebGL2 via three.js | three.js WebGPURenderer | **Wait** |
-| Speech in | typing only | Web Speech, then Cloud STT | **Swap** — `00`, Phase 1 |
-| Speech out | none | Cloud TTS, pre-rendered | **Swap** — `00`, Phase 1 |
+| Speech in | Web Speech API | Cloud STT for consistency | **Done** keyless |
+| Speech out | `speechSynthesis` | Cloud TTS, pre-rendered | **Done** keyless |
 | Grading beyond one word | none | Gemini | **Add** — `00`, Phase 2 |
 | Object recognition | platform semantic labels | MediaPipe on-device | **Add** — `00`, Phase 3 |
 | Vocabulary | one hand-written Spanish pack | Cloud Translation, offline | **Swap** — see below |
-| Progress persistence | none — refresh loses everything | `localStorage`, then Firestore | **Add**, local first |
+| Progress persistence | `localStorage` | Firestore for cross-device | **Done** locally |
 | Feature flags | hard-coded, needs a redeploy | Firebase Remote Config | **Add** |
 | Analytics | none | GA4 via Firebase | **Add**, minimal |
 | Error reporting | console only | Cloud Logging / Error Reporting | **Add** with the proxy |
@@ -50,33 +50,26 @@ Wonderland — are all further from where this code already sits, not closer.
 | CI | none — deploys are manual | GitHub Actions + Hosting preview channels | **Add** |
 | Browser automation | Chrome DevTools Protocol | already the Google option | **Keep** |
 | 3D assets | procedural, zero binaries | Draco + KTX2/Basis if assets ever land | **Not yet** |
-| Deploy config leftovers | `vercel.ts`, `@vercel/config` | — | **Delete** |
+| Deploy config leftovers | none | — | **Done** |
 
 ---
 
 ## Worth doing, in order
 
-### 1. Delete the Vercel leftovers
+### ~~1. Delete the Vercel leftovers~~ — done
 
-`vercel.ts` and the `@vercel/config` dev dependency are from an earlier plan to deploy on Vercel.
-The app deploys on Firebase and nothing references them. They are a heavy dependency tree behind a
-seven-line config for a platform we do not use, and they invite the question "which host is this
-actually on?" every time someone reads the repo root.
+`vercel.ts` and the `@vercel/config` dev dependency were from an earlier plan to deploy on Vercel.
+Both are gone.
 
-Five minutes, removes a dependency, removes an ambiguity.
+### ~~2. Persist progress~~ — done locally
 
-### 2. Persist progress
+Learned words are in `localStorage`, keyed per language and validated against the current pack on
+load. See `apps/xr/src/progress.ts`.
 
-Refreshing the page loses everything. For a link people are invited to try, that is the most
-visible missing feature that costs almost nothing.
-
-- **`localStorage` first.** Learned labels and the tier are a tiny JSON blob. No account, no
-  network, no privacy question to answer, works offline. This should exist regardless of anything
-  else on this list.
-- **Firestore only if cross-device matters.** It means anonymous Firebase Auth, a data-retention
-  answer, and a running service — for a demo where the whole session is ten minutes and thirteen
-  words. Do not add it until someone actually asks to continue on their headset what they started
-  on their laptop.
+**Firestore is still deliberately not done.** Cross-device sync means anonymous Firebase Auth, a
+data-retention answer, and a running service — for a demo where the whole session is ten minutes
+and thirteen words. Do not add it until someone actually asks to continue on their headset what
+they started on their laptop.
 
 ### 3. Continuous integration
 
