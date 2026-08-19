@@ -103,6 +103,17 @@ If you're a Unity developer looking at WebXR for the first time, start with
   shadow frustums, why there is no TextMeshPro, IWSDK-specific traps, and how to test any of it
   without a headset.
 
+## Where this is going
+
+The port is the origin, not the ceiling. `docs/roadmap/` plans the next version:
+
+- [`00-google-stack.md`](docs/roadmap/00-google-stack.md) — voice, grading and vision on Google
+  services, and the key/quota strategy that keeps a public demo from becoming a bill.
+- [`01-stack-alternatives.md`](docs/roadmap/01-stack-alternatives.md) — every existing piece of the
+  stack with a keep/swap/skip verdict.
+- [`02-2026-experience.md`](docs/roadmap/02-2026-experience.md) — the target: a tutor that can see
+  the room you are in, name anything you point at, and drive the scene while it talks.
+
 ## Credit and license
 
 This is a fan/community port. It is **not affiliated with or endorsed by Meta Platforms, Inc.**
