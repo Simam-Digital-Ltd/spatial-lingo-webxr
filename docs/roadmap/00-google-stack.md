@@ -92,7 +92,11 @@ Tier A genuinely cannot do.
 **Do not rely on Google Cloud budget alerts as a stop.** They notify; they do not halt spend. The
 only reliable hard stop is the counter in your own code. Alerts are the second line, not the first.
 
-### Tier C — bring your own key
+### Tier C — bring your own key — **shipped**
+
+Built first, because it needs no server and no decision about running costs. Settings panel,
+`localStorage`, requests straight from the browser to Google; it unlocks sentence practice, which
+is the one thing the deterministic scorer genuinely cannot do. See `apps/xr/src/gemini.ts`.
 
 For anyone who wants it uncapped, including us during development.
 

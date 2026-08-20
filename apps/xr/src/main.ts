@@ -20,6 +20,9 @@ import {
   resolveTier,
   type Capabilities,
 } from './capabilities.js';
+import { ApiKeyStore } from './api-key.js';
+import { SentenceChallenge, SettingsDialog } from './byok-ui.js';
+import { GeminiClient } from './gemini.js';
 import { Hud, WelcomeOverlay } from './hud.js';
 import { ProgressStore } from './progress.js';
 import { PALETTE } from './scene/palette.js';
@@ -180,6 +183,11 @@ function wireLessonLoop(
   selection.onSelect((label) => lesson.selectTarget(label));
   selection.onHover(onHover);
 
+  // Set once the optional layer is built, below. Words learned before then
+  // (there are none — nothing can be answered until the loop is wired) simply
+  // do not trigger it.
+  let onWordLearned: ((label: string) => void) | null = null;
+
   // Restored words are already learned, so they must not be re-revealed as if
   // they had just been got right — the high-water mark starts where the last
   // session ended.
@@ -196,7 +204,9 @@ function wireLessonLoop(
     const room = getRoom();
     for (let index = seenLearned; index < labels.length; index++) {
       const label = labels[index];
-      if (label && room) room.reveal(label);
+      if (!label) continue;
+      room?.reveal(label);
+      onWordLearned?.(label);
     }
     seenLearned = labels.length;
     room?.setLearnedCount?.(labels.length);
@@ -220,6 +230,21 @@ function wireLessonLoop(
   // Speaking and hearing, using only what the browser already ships. Both
   // controls stay hidden unless the API behind them is actually present, so a
   // browser without them shows exactly the interface that shipped before.
+  // The optional bring-your-own-key layer. Everything above this line works
+  // with no key, no network and no model, and keeps working if this fails.
+  const keys = new ApiKeyStore();
+  const gemini = new GeminiClient(pack, keys);
+  const challenge = new SentenceChallenge(gemini);
+  const settings = new SettingsDialog(keys);
+  settings.onChange(() => {
+    // Removing a key mid-session should take the challenge away with it.
+    if (!gemini.isConfigured) challenge.hide();
+  });
+  onWordLearned = (label) => {
+    const entry = pack.entries.find((candidate) => candidate.label === label);
+    if (entry) challenge.offer(entry);
+  };
+
   const speaker = new Speaker(pack);
   if (speaker.isAvailable()) {
     let spoken: LessonState['entry'] = null;

@@ -156,6 +156,82 @@
       #feedback.wrong { color: var(--bad); }
       #feedback .sentence { display: block; margin-top: 0.2rem; color: var(--ink-dim); font-style: italic; }
 
+      /* The sentence challenge: a second card under the lesson, shown only
+         after a word is learned and only when a key is configured. */
+      #challenge {
+        width: min(30rem, calc(100vw - 2rem));
+        padding: 0.95rem 1.1rem;
+        display: none;
+      }
+      #challenge.active { display: block; }
+      #challenge .prompt-label { font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--ink-dim); }
+      #challenge h2 { margin: 0.15rem 0 0; font-size: 1.05rem; font-weight: 650; }
+      #challenge h2 em { color: var(--accent); font-style: normal; }
+      #sentence {
+        width: 100%; margin-top: 0.7rem;
+        padding: 0.65rem 0.8rem;
+        font: inherit; font-size: 0.92rem; line-height: 1.5;
+        color: var(--ink); background: rgba(0, 0, 0, 0.32);
+        border: 1px solid var(--stroke); border-radius: 10px;
+        resize: vertical; min-height: 3.6rem;
+      }
+      #sentence:focus { outline: none; border-color: var(--accent); }
+      #challenge-actions { display: flex; gap: 0.5rem; margin-top: 0.6rem; align-items: center; }
+      #challenge-feedback { margin-top: 0.6rem; font-size: 0.88rem; line-height: 1.5; display: none; }
+      #challenge-feedback.show { display: block; }
+      #challenge-feedback.correct { color: var(--good); }
+      #challenge-feedback.wrong { color: var(--near); }
+      #challenge-feedback.error { color: var(--ink-dim); }
+
+      /* Settings: bring-your-own-key. */
+      #settings-open {
+        margin-top: 0.5rem; padding: 0;
+        background: none; color: var(--ink-dim);
+        font-size: 0.74rem; font-weight: 500;
+      }
+      #settings-open:hover { color: var(--accent); }
+
+      #settings {
+        position: fixed; inset: 0; z-index: 4;
+        display: none; place-items: center;
+        padding: 1.25rem; overflow-y: auto;
+        background: rgba(8, 10, 14, 0.72);
+      }
+      #settings.open { display: grid; }
+      #settings-card {
+        width: min(30rem, 100%);
+        padding: 1.4rem 1.5rem;
+        background: var(--panel-solid);
+        border: 1px solid var(--stroke);
+        border-radius: 16px;
+        box-shadow: var(--shadow);
+      }
+      #settings h2 { margin: 0; font-size: 1.15rem; font-weight: 700; }
+      #settings p { margin: 0.6rem 0 0; font-size: 0.85rem; line-height: 1.55; color: var(--ink-dim); }
+      #settings a { color: var(--accent); }
+      #settings label {
+        display: block; margin-top: 1rem;
+        font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.09em;
+        color: var(--ink-dim);
+      }
+      #settings input {
+        width: 100%; margin-top: 0.3rem;
+        padding: 0.6rem 0.75rem;
+        font: inherit; font-size: 0.9rem;
+        color: var(--ink); background: rgba(0, 0, 0, 0.35);
+        border: 1px solid var(--stroke); border-radius: 10px;
+      }
+      #settings input:focus { outline: none; border-color: var(--accent); }
+      .warn {
+        margin-top: 0.9rem; padding: 0.6rem 0.75rem;
+        border: 1px solid rgba(232, 121, 111, 0.4);
+        border-radius: 10px;
+        background: rgba(232, 121, 111, 0.1);
+        font-size: 0.8rem; line-height: 1.5; color: var(--ink-dim);
+      }
+      #settings-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1.1rem; align-items: center; }
+      #settings-status { font-size: 0.78rem; color: var(--ink-dim); }
+
       #hint {
         padding: 0.55rem 0.9rem;
         font-size: 0.83rem;
@@ -267,6 +343,7 @@
             Meta's Unity language-learning demo, rebuilt on the open web with the Immersive Web SDK.
             Click anything in the room to learn its Spanish name.
           </p>
+          <button id="settings-open" type="button">Connect a Gemini key</button>
         </div>
         <div id="progress" class="panel">
           <div class="count"><b id="learned-count">0</b><span> / <b id="total-count">0</b> learned</span></div>
@@ -303,11 +380,63 @@
           <div id="feedback"></div>
         </div>
 
+        <div id="challenge" class="panel">
+          <div class="prompt-label">Now use it</div>
+          <h2>Write a sentence with <em id="challenge-word">&mdash;</em></h2>
+          <textarea
+            id="sentence"
+            rows="2"
+            maxlength="200"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="Your own sentence, in Spanish"
+          ></textarea>
+          <div id="challenge-actions">
+            <button id="challenge-submit" type="button">Check my sentence</button>
+            <button id="challenge-skip" class="ghost" type="button">Skip</button>
+          </div>
+          <div id="challenge-feedback"></div>
+        </div>
+
         <div id="hint" class="panel">
           <strong>Drag</strong> to look around · <strong>scroll</strong> to zoom · <strong>click</strong> an object to start
         </div>
 
         <button id="enter-xr" type="button">Enter mixed reality</button>
+      </div>
+    </div>
+
+    <div id="settings" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <div id="settings-card">
+        <h2 id="settings-title">Connect your own Gemini key</h2>
+        <p>
+          Unlocks sentence practice: write your own sentence using a word you have learned and
+          have it checked properly, rather than matched against a fixed answer.
+        </p>
+        <p>
+          This app has no server, so there is no shared key to hand out. Bring your own from
+          <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio</a>
+          and requests go from this browser straight to Google.
+        </p>
+
+        <label for="api-key">API key</label>
+        <input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your key" />
+
+        <label for="api-model">Model</label>
+        <input id="api-model" type="text" autocomplete="off" spellcheck="false" />
+
+        <p class="warn">
+          Your key is stored in this browser only, and is never sent to us, committed, or logged.
+          Anyone with access to this browser profile can read it back, so use a restricted key and
+          remove it when you are done.
+        </p>
+
+        <div id="settings-actions">
+          <button id="settings-save" type="button">Save key</button>
+          <button id="settings-forget" class="ghost" type="button">Forget key</button>
+          <button id="settings-close" class="ghost" type="button">Close</button>
+          <span id="settings-status"></span>
+        </div>
       </div>
     </div>
 
