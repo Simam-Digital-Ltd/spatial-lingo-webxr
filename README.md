@@ -1,5 +1,7 @@
 # Spatial Lingo — WebXR
 
+[![CI](https://github.com/Simam-Digital-Ltd/spatial-lingo-webxr/actions/workflows/ci.yml/badge.svg)](https://github.com/Simam-Digital-Ltd/spatial-lingo-webxr/actions/workflows/ci.yml)
+
 A WebXR port of [Spatial Lingo](https://github.com/oculus-samples/Unity-SpatialLingo), Meta's
 open-source Unity Quest app that teaches vocabulary by pointing at real objects in your room.
 This port rebuilds the app on [Meta's Immersive Web SDK](https://github.com/facebook/immersive-web-sdk)
@@ -144,3 +146,25 @@ firebase deploy --only hosting
 
 There are no build-time secrets: the vocabulary pack is a static JSON file bundled into the app,
 which is why the demo needs no key wall and no backend.
+
+### Continuous integration
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) typechecks, tests and builds every push to
+`master` and every pull request. It then deploys what it just checked — a temporary
+[Hosting preview channel](https://firebase.google.com/docs/hosting/test-preview-deploy) for a pull
+request, the live site for a merge.
+
+The deploy half is **opt-in**, so a fork gets working checks without owning a Firebase project. To
+turn it on for your own copy, add two things to the repository:
+
+| Kind | Name | Value |
+| --- | --- | --- |
+| Secret | `FIREBASE_SERVICE_ACCOUNT` | the full JSON of a service account with the *Firebase Hosting Admin* role |
+| Variable | `FIREBASE_PROJECT_ID` | your project id, e.g. `your-project-id` |
+
+Without both, the deploy jobs skip with a notice and the checks still run. The project id is a
+variable rather than a literal in the workflow because `.firebaserc` is git-ignored on purpose —
+see above.
+
+A pull request opened from a **fork** is checked but never deployed: GitHub does not expose
+secrets to fork workflows, which is the behaviour you want on a public repo.

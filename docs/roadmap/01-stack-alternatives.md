@@ -47,7 +47,7 @@ Wonderland — are all further from where this code already sits, not closer.
 | Analytics | none | GA4 via Firebase | **Add**, minimal |
 | Error reporting | console only | Cloud Logging / Error Reporting | **Add** with the proxy |
 | Abuse control | none needed yet | Firebase App Check | **Add** with the proxy |
-| CI | none — deploys are manual | GitHub Actions + Hosting preview channels | **Add** |
+| CI | none — deploys are manual | GitHub Actions + Hosting preview channels | **Done** |
 | Browser automation | Chrome DevTools Protocol | already the Google option | **Keep** |
 | 3D assets | procedural, zero binaries | Draco + KTX2/Basis if assets ever land | **Not yet** |
 | Deploy config leftovers | none | — | **Done** |
@@ -71,15 +71,27 @@ data-retention answer, and a running service — for a demo where the whole sess
 and thirteen words. Do not add it until someone actually asks to continue on their headset what
 they started on their laptop.
 
-### 3. Continuous integration
+### ~~3. Continuous integration~~ — done
 
-There is none. Tests, typecheck and build all run on a developer machine and deploys are manual,
-which is how a broken build reaches a public URL.
+`.github/workflows/ci.yml` runs `typecheck`, `test` and `build` on every push to `master` and
+every pull request, then publishes the artifact it just checked: a **Firebase Hosting preview
+channel** for a pull request, the live site for a merge. A reviewer clicks a link and sees the
+change instead of imagining it, which is the single most useful thing CI can do for a project
+whose output is visual.
 
-GitHub Actions is the pragmatic choice for a public repo, and it composes with the Google side
-rather than competing with it: **Firebase Hosting preview channels** give every pull request its
-own temporary URL. That is the single most useful thing CI can do for a project whose output is
-visual — a reviewer clicks a link and sees the change instead of imagining it.
+Two properties worth keeping if this file is ever rewritten:
+
+- **The deploy half is optional.** It runs only when a `FIREBASE_SERVICE_ACCOUNT` secret and a
+  `FIREBASE_PROJECT_ID` variable both exist on the repository. Without them the checks still run
+  and the deploy jobs skip with a notice. A fork clone of this public repo therefore gets working
+  CI on day one, and a pull request from a fork — which GitHub never hands secrets to — is checked
+  but cannot deploy anywhere.
+- **The project id is a repository variable, not a literal.** `.firebaserc` is git-ignored on
+  purpose; hardcoding the id in a workflow would put it back in the public repo through the side
+  door.
+
+The deployed bytes are the artifact the checks passed against, not a second build, so a green
+check cannot certify one build while the URL serves another.
 
 Cloud Build is the Google-native alternative and is the right answer only if the build ever needs
 to sit inside the same project as the services.

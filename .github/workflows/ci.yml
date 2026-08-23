@@ -1,0 +1,130 @@
+# Typecheck, test and build on every push and pull request, then publish the
+# result to Firebase Hosting: a throwaway preview channel for a pull request,
+# the live site for a merge to master.
+#
+# The deploy half is optional by design. It runs only when both a
+# FIREBASE_SERVICE_ACCOUNT secret and a FIREBASE_PROJECT_ID variable are
+# configured on the repository; without them the checks still run and the
+# deploy jobs are skipped with a notice rather than failing the run. That also
+# means a pull request from a fork — which GitHub never gives secrets to — gets
+# its code checked but cannot deploy anything anywhere.
+#
+# The project id lives in a repository variable rather than in this file
+# because `.firebaserc` is deliberately gitignored, and hardcoding the id here
+# would put it back into the public repository through the side door.
+
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+# A newer commit makes an in-flight run pointless. Cancel it rather than
+# spending minutes deploying a preview nobody will open.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Secrets cannot be read from a job-level `if`, so the presence check happens
+  # in a step and is passed onward as an output.
+  config:
+    name: Check deploy configuration
+    runs-on: ubuntu-latest
+    outputs:
+      deployable: ${{ steps.probe.outputs.deployable }}
+    steps:
+      - id: probe
+        env:
+          SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: |
+          if [ -n "$SERVICE_ACCOUNT" ] && [ -n "$PROJECT_ID" ]; then
+            echo 'deployable=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'deployable=false' >> "$GITHUB_OUTPUT"
+            echo "::notice title=Deploy skipped::Set the FIREBASE_SERVICE_ACCOUNT secret and the FIREBASE_PROJECT_ID variable to enable Hosting deploys. Checks still ran."
+          fi
+
+  verify:
+    name: Typecheck, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # Frozen: CI installs exactly what the lockfile says, or it fails. A CI
+      # run that silently resolves a different dependency tree than the one
+      # committed is not testing the commit.
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm -r typecheck
+
+      - run: pnpm -r test
+
+      - run: pnpm -r build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: xr-dist
+          path: apps/xr/dist
+          retention-days: 7
+          if-no-files-found: error
+
+  preview:
+    name: Deploy preview channel
+    needs: [config, verify]
+    if: github.event_name == 'pull_request' && needs.config.outputs.deployable == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # The build is not repeated: the bytes deployed here are the exact bytes
+      # the checks above passed against.
+      - uses: actions/download-artifact@v4
+        with:
+          name: xr-dist
+          path: apps/xr/dist
+
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: ${{ vars.FIREBASE_PROJECT_ID }}
+          # Previews are disposable. Expiring them keeps stale builds of a
+          # WebXR app from lingering on guessable URLs.
+          expires: 7d
+
+  live:
+    name: Deploy to live
+    needs: [config, verify]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.config.outputs.deployable == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: xr-dist
+          path: apps/xr/dist
+
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: ${{ vars.FIREBASE_PROJECT_ID }}
+          channelId: live
