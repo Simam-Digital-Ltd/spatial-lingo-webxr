@@ -318,16 +318,41 @@ voice for free.
 
 ---
 
-## Phase 5 — The gym scene, as a debug route
+## ~~Phase 5 — The gym scene, as a debug route~~ — done
 
 The Unity Gym scene is a developer sandbox for exercising the AI, camera and room systems without
-a real scanned room. The closest thing here is already built — the simulated room and the browser
-showroom serve that purpose.
+a real scanned room. The closest thing here was already built — the simulated room and the browser
+showroom serve that purpose — so the idea was finished rather than the scene ported. It is one
+URL, in `apps/xr/src/debug.ts`:
 
-Finish the idea rather than porting the scene: put the existing `?debug` diagnostics panel, a tier
-override, a "force the fallback room" switch, and per-service health readouts (proxy reachable,
-microphone permitted, model loaded) behind one route. Cheap, and it makes every phase above
-testable without faking a device.
+| Switch | Effect |
+| --- | --- |
+| `?debug` | Reveals the corner: service health above, the raw lesson-machine dump below. |
+| `?debug&tier=N` | Makes the app believe it is on a tier-`N` device, 1–4. |
+| `?debug&room=simulated` | Ignores a real room scan and uses stand-in objects. |
+
+Three things are worth keeping from how it was built.
+
+**The tier override is expressed as capabilities, not as a tier.** The tier is *derived* —
+`resolveTier` is the only thing that computes it, and every downstream decision already reads it.
+So the override rewrites `resolveTier`'s **input**, which means there is exactly one place where
+the lie is told and no code path that can forget to consult it. It is re-applied inside
+`sessionstart` as well, because `capabilitiesFromSession` reads what the session really granted
+and would otherwise silently overwrite a forced tier at the moment it matters most.
+
+**Nothing is honoured without `?debug` itself.** A shared link carrying a stray `?tier=4` must not
+quietly serve a degraded app to whoever opens it.
+
+**The forced-room decision is a pure function.** It can only be *reached* inside a live
+`sessionstart` handler on a real headset, which is precisely what CI cannot run. Left as a
+condition inside an event listener it would have been a branch nobody could exercise;
+`shouldUseSimulatedRoom` is checkable in Node, and is.
+
+Honest limits: the override makes the app *believe* a feature was granted, it does not make the
+device grant it — forcing tier 2 on a headset without mesh detection yields an app that waits for
+meshes that never arrive and then falls back on the grace timer. And "gemini key" reports that a
+key is **configured**, not that the model answers; confirming the latter would mean spending a
+request on the learner's own key for a diagnostic they did not ask for.
 
 **Effort:** small. **Server:** none.
 
@@ -337,7 +362,9 @@ testable without faking a device.
 
 1. **Voice (Phase 1).** No backend, no keys, no ongoing cost, and it closes the single largest
    divergence from the original. Highest value per unit of risk on the list.
-2. **Gym/debug route (Phase 5).** Small, and everything after it is easier to test.
+2. ~~**Gym/debug route (Phase 5).** Small, and everything after it is easier to test.~~ **Done** —
+   and it did what it was sequenced here to do: the vision and word-cloud phases below can be
+   driven from a URL rather than from a headset.
 3. **Word cloud (Phase 2).** First thing that needs the proxy, so it carries the cost of building
    it. Do not start until the spend cap and App Check are in place.
 4. **Vision (Phase 3).** Independent of Phase 2 — could swap with it. Sequenced second because

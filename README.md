@@ -58,10 +58,28 @@ on a plain browser tab it runs Tier 4's showroom, so you can try the full lesson
 object, type the word, get scored, watch the tree grow — immediately.
 
 ```bash
-pnpm test        # 51 tests in packages/lingo-core, 78 in apps/xr
+pnpm test        # 56 tests in packages/lingo-core, 156 in apps/xr
 pnpm typecheck    # both packages
 pnpm build        # production build of apps/xr
 ```
+
+### The developer route
+
+The Unity original ships a Gym scene — a sandbox for exercising the room and AI systems without a
+real scanned room. Here that is a URL rather than a scene, because the showroom and the simulated
+room already *are* the sandbox; what was missing was a way to choose between them.
+
+| Switch | Effect |
+| --- | --- |
+| `?debug` | Corner readout: resolved tier, granted WebXR features, microphone permission, speech-synthesis voice, whether a Gemini key is configured, and the raw lesson-machine state. |
+| `?debug&tier=N` | Run as though the device were tier `N` (1–4) — check the fallbacks without owning four devices. |
+| `?debug&room=simulated` | Use stand-in objects even where a real room scan exists. |
+
+Nothing here is honoured without `?debug` itself, so a shared link carrying a stray `?tier=4`
+cannot serve a degraded app to whoever opens it. Two honest limits: the tier override makes the
+app *believe* a feature was granted, it cannot make the device grant one; and the key readout says
+a key is configured, not that the model answers — checking that would spend a request on the
+learner's own key for a diagnostic they never asked for.
 
 ## Repo layout
 
