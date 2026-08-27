@@ -12,6 +12,11 @@
 # The project id lives in a repository variable rather than in this file
 # because `.firebaserc` is deliberately gitignored, and hardcoding the id here
 # would put it back into the public repository through the side door.
+#
+# The deploy action is pinned to an exact release rather than the moving `v0`
+# tag its README suggests. It is the one step here handed a service-account
+# credential, and a floating tag means whatever that repository points at
+# tomorrow gets the key -- so its version is a decision, not a default.
 
 name: CI
 
@@ -55,11 +60,11 @@ jobs:
     name: Typecheck, test, build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -75,7 +80,7 @@ jobs:
 
       - run: pnpm -r build
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: xr-dist
           path: apps/xr/dist
@@ -91,16 +96,16 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # The build is not repeated: the bytes deployed here are the exact bytes
       # the checks above passed against.
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: xr-dist
           path: apps/xr/dist
 
-      - uses: FirebaseExtended/action-hosting-deploy@v0
+      - uses: FirebaseExtended/action-hosting-deploy@v0.11.0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
@@ -115,14 +120,14 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.config.outputs.deployable == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: xr-dist
           path: apps/xr/dist
 
-      - uses: FirebaseExtended/action-hosting-deploy@v0
+      - uses: FirebaseExtended/action-hosting-deploy@v0.11.0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
