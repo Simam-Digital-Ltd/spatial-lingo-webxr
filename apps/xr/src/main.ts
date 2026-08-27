@@ -22,6 +22,14 @@ import {
 } from './capabilities.js';
 import { ApiKeyStore } from './api-key.js';
 import { SentenceChallenge, SettingsDialog } from './byok-ui.js';
+import {
+  DebugPanel,
+  applyTierOverride,
+  parseDebugOptions,
+  probeMicrophone,
+  shouldUseSimulatedRoom,
+  type DebugOptions,
+} from './debug.js';
 import { GeminiClient } from './gemini.js';
 import { Hud, WelcomeOverlay } from './hud.js';
 import { ProgressStore } from './progress.js';
@@ -50,18 +58,14 @@ function setHint(html: string): void {
 }
 
 /**
- * Writes the capability readout to the console, and reveals the diagnostics
- * corner when the URL carries `?debug`.
+ * Writes the capability readout to the console.
  *
- * Hidden by default: the raw state-machine dump is genuinely useful when
- * triaging a headset that granted fewer features than expected, and genuinely
- * noise for anyone who just opened the link to try the demo.
+ * Unconditional, unlike the on-screen corner: a console line costs a visitor
+ * nothing and is the first thing worth asking for when someone reports that a
+ * headset behaved unexpectedly. The corner readout is behind `?debug` because
+ * a raw state-machine dump is noise for anyone who just opened the link.
  */
-function renderDiagnostics(capabilities: Capabilities): void {
-  const panel = document.getElementById('diagnostics');
-  if (panel && new URLSearchParams(window.location.search).has('debug')) {
-    panel.classList.add('show');
-  }
+function logCapabilities(capabilities: Capabilities): void {
   console.info('[spatial-lingo] capabilities', capabilities, 'tier', resolveTier(capabilities));
 }
 
@@ -161,6 +165,7 @@ function wireLessonLoop(
   pack: LessonPack,
   getRoom: () => RoomRenderer | null,
   onHover: (label: string | null) => void,
+  debugPanel: DebugPanel,
 ): void {
   world.registerSystem(LessonSystem);
   world.registerSystem(TargetSelectionSystem);
@@ -236,9 +241,11 @@ function wireLessonLoop(
   const gemini = new GeminiClient(pack, keys);
   const challenge = new SentenceChallenge(gemini);
   const settings = new SettingsDialog(keys);
+  debugPanel.update({ geminiKey: gemini.isConfigured });
   settings.onChange(() => {
     // Removing a key mid-session should take the challenge away with it.
     if (!gemini.isConfigured) challenge.hide();
+    debugPanel.update({ geminiKey: gemini.isConfigured });
   });
   onWordLearned = (label) => {
     const entry = pack.entries.find((candidate) => candidate.label === label);
@@ -246,6 +253,15 @@ function wireLessonLoop(
   };
 
   const speaker = new Speaker(pack);
+  debugPanel.update({ voice: speaker.isAvailable() });
+  // Most browsers populate the voice list asynchronously and report it empty on
+  // the first synchronous read, so the boot-time answer above is often "no
+  // voice" on a device that has one moments later. Re-reading on the same event
+  // the Speaker itself listens for keeps the readout honest rather than
+  // permanently accusing the browser of something it did not do.
+  window.speechSynthesis?.addEventListener?.('voiceschanged', () => {
+    debugPanel.update({ voice: speaker.isAvailable() });
+  });
   if (speaker.isAvailable()) {
     let spoken: LessonState['entry'] = null;
     lesson.onState((state) => {
@@ -282,6 +298,7 @@ function setupImmersive(
   pack: LessonPack,
   capabilities: Capabilities,
   handover: { onSessionStart: () => void },
+  debug: { options: DebugOptions; panel: DebugPanel },
 ): SimulatedRoomSystem {
   world.registerSystem(SceneLabelSystem);
   world.registerSystem(SimulatedRoomSystem);
@@ -296,7 +313,11 @@ function setupImmersive(
   // have committed to the simulated room, so the two sources never combine.
   // See room-fallback.ts for the full race-condition reasoning.
   const roomSource = new RoomSourceController();
-  sceneLabelSystem.setTagGuard(() => roomSource.onRealTargetSeen());
+  sceneLabelSystem.setTagGuard(() => {
+    const tagged = roomSource.onRealTargetSeen();
+    if (tagged) debug.panel.update({ roomSource: 'scanned' });
+    return tagged;
+  });
 
   let roomSourceChosen = false;
   let fallbackTimer: ReturnType<typeof setTimeout> | undefined;
@@ -306,8 +327,15 @@ function setupImmersive(
     if (!session) return;
     handover.onSessionStart();
 
-    const refined = capabilitiesFromSession(session, capabilities);
-    renderDiagnostics(refined);
+    // The override is re-applied here, not just at boot: `capabilitiesFromSession`
+    // reads what the session really granted, which would otherwise overwrite a
+    // forced tier the moment a session started — exactly when it matters most.
+    const refined = applyTierOverride(
+      capabilitiesFromSession(session, capabilities),
+      debug.options,
+    );
+    logCapabilities(refined);
+    debug.panel.update({ capabilities: refined, roomSource: 'pending' });
 
     // Mesh-detection support is only known for certain once the session has
     // actually granted (or declined) the feature, so the Tier 2 vs Tier 3
@@ -315,11 +343,18 @@ function setupImmersive(
     if (roomSourceChosen) return;
     roomSourceChosen = true;
 
-    if (resolveTier(refined) === 3) {
-      // No mesh detection at all: go straight to stand-ins, and lock the
+    // `?debug&room=simulated` takes the same path Tier 3 does, but for a
+    // different reason and without claiming a different tier: mesh detection
+    // really was granted, and the room scan is being ignored on purpose. That
+    // is the switch worth having on a headset that *has* been through Room
+    // Setup, where there is otherwise no way to see the fallback at all.
+    if (shouldUseSimulatedRoom(resolveTier(refined), debug.options)) {
+      // No usable scan, either because none was granted or because we are
+      // deliberately ignoring one: go straight to stand-ins, and lock the
       // controller so a spurious late mesh can never also get tagged.
       roomSource.markSimulatedRoomSpawned();
       simulatedRoom.spawn(pack, SIMULATED_ROOM_COUNT);
+      debug.panel.update({ roomSource: 'simulated' });
       return;
     }
 
@@ -331,6 +366,7 @@ function setupImmersive(
       fallbackTimer = undefined;
       if (!roomSource.onGraceTimerFired()) return;
       simulatedRoom.spawn(pack, SIMULATED_ROOM_COUNT);
+      debug.panel.update({ roomSource: 'simulated' });
       setHint(
         '<strong>No room scan found</strong> — showing stand-in objects. ' +
           'Run Room Setup on your headset to use your real room instead.',
@@ -395,8 +431,31 @@ async function createWorld(capabilities: Capabilities): Promise<World> {
 }
 
 async function main(): Promise<void> {
-  const capabilities = await probeCapabilities(navigator, window);
-  renderDiagnostics(capabilities);
+  const debugOptions = parseDebugOptions(window.location.search);
+
+  // The override is applied before anything reads the capabilities, so every
+  // downstream decision — which world gets created, whether the XR button is
+  // offered at all — sees the impersonated device rather than the real one.
+  const capabilities = applyTierOverride(
+    await probeCapabilities(navigator, window),
+    debugOptions,
+  );
+  logCapabilities(capabilities);
+
+  const debugPanel = new DebugPanel({
+    capabilities,
+    tierForced: debugOptions.tier !== null,
+    roomSource: 'showroom',
+    microphone: 'unknown',
+    voice: false,
+    geminiKey: false,
+  });
+  if (debugOptions.enabled) {
+    debugPanel.show();
+    // Fire and forget: the panel repaints when the answer arrives, and boot
+    // must not wait on a permission query to render the room.
+    void probeMicrophone(navigator).then((microphone) => debugPanel.update({ microphone }));
+  }
 
   const container = getContainer();
   const world = await createWorld(capabilities);
@@ -433,6 +492,7 @@ async function main(): Promise<void> {
       // nothing on screen says the furniture is clickable.
       container.style.cursor = label ? 'pointer' : 'default';
     },
+    debugPanel,
   );
 
   const welcome = new WelcomeOverlay();
@@ -458,7 +518,7 @@ async function main(): Promise<void> {
       activeRoom = simulatedRoom;
       setHint('Look at an object and pinch to start a lesson');
     },
-  });
+  }, { options: debugOptions, panel: debugPanel });
 
   const button = document.getElementById('enter-xr');
   if (!(button instanceof HTMLButtonElement)) return;

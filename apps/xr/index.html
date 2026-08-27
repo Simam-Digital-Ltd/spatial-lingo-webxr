@@ -243,14 +243,24 @@
       #enter-xr { display: none; }
       #enter-xr.show { display: inline-block; }
 
-      #diagnostics {
+      /* The developer corner, revealed by `?debug`. Two stacked readouts: the
+         service health above, the raw lesson-machine dump below. See
+         src/debug.ts for why this is a route rather than a ported Gym scene. */
+      #debug-corner {
         position: fixed; left: 1rem; bottom: 1rem;
+        max-width: min(22rem, calc(100vw - 2rem));
         font-size: 0.68rem; line-height: 1.5; font-family: ui-monospace, monospace;
         color: rgba(244, 241, 234, 0.4);
         pointer-events: none; z-index: 2;
-        display: none;
+        display: none; flex-direction: column; gap: 0.5rem;
       }
-      #diagnostics.show { display: block; }
+      #debug-corner.show { display: flex; }
+      #debug-corner b { color: rgba(244, 241, 234, 0.72); font-weight: 650; }
+      #debug-corner i { font-style: normal; }
+      #debug-corner i.ok { color: var(--good); }
+      #debug-corner i.warn { color: var(--near); }
+      #debug-corner i.off { color: rgba(244, 241, 234, 0.28); }
+      #debug-health:empty { display: none; }
 
       /* The welcome screen doubles as the boot screen: it is plain HTML, so it
          paints on first frame, long before the world finishes building. The
@@ -440,7 +450,10 @@
       </div>
     </div>
 
-    <div id="diagnostics"></div>
+    <div id="debug-corner">
+      <div id="debug-health"></div>
+      <div id="diagnostics"></div>
+    </div>
 
     <div id="welcome" role="dialog" aria-modal="true" aria-labelledby="welcome-title">
       <div id="welcome-card">
