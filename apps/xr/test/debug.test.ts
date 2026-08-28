@@ -4,9 +4,9 @@ import type { Capabilities } from '../src/capabilities.js';
 import { resolveTier } from '../src/capabilities.js';
 import {
   applyTierOverride,
-  describeMicrophone,
+  describePermission,
   parseDebugOptions,
-  probeMicrophone,
+  probePermission,
   renderHealthPanel,
   shouldUseSimulatedRoom,
   type HealthReadout,
@@ -26,6 +26,8 @@ const HEALTH: HealthReadout = {
   tierForced: false,
   roomSource: 'showroom',
   microphone: 'prompt',
+  camera: 'prompt',
+  vision: 'idle',
   voice: false,
   geminiKey: false,
 };
@@ -181,28 +183,28 @@ describe('renderHealthPanel', () => {
   });
 });
 
-describe('describeMicrophone', () => {
+describe('describePermission', () => {
   it('distinguishes denied from never asked', () => {
-    expect(describeMicrophone('denied')).toContain('denied');
-    expect(describeMicrophone('prompt')).toContain('not asked');
+    expect(describePermission('denied')).toContain('denied');
+    expect(describePermission('prompt')).toContain('not asked');
   });
 
   it('reports a browser that cannot answer separately from one that said no', () => {
-    expect(describeMicrophone('unsupported')).not.toContain('denied');
-    expect(describeMicrophone('unknown')).not.toContain('denied');
+    expect(describePermission('unsupported')).not.toContain('denied');
+    expect(describePermission('unknown')).not.toContain('denied');
   });
 });
 
-describe('probeMicrophone', () => {
+describe('probePermission', () => {
   it('reports unsupported when there is no permissions API', async () => {
-    expect(await probeMicrophone({} as Navigator)).toBe('unsupported');
+    expect(await probePermission({} as Navigator, 'microphone')).toBe('unsupported');
   });
 
   it('passes through a standing decision', async () => {
     const nav = {
       permissions: { query: async () => ({ state: 'granted' }) },
     } as unknown as Navigator;
-    expect(await probeMicrophone(nav)).toBe('granted');
+    expect(await probePermission(nav, 'microphone')).toBe('granted');
   });
 
   // Firefox has historically rejected the `microphone` descriptor outright.
@@ -214,7 +216,7 @@ describe('probeMicrophone', () => {
         },
       },
     } as unknown as Navigator;
-    expect(await probeMicrophone(nav)).toBe('unsupported');
+    expect(await probePermission(nav, 'microphone')).toBe('unsupported');
   });
 
   it('asks for the microphone and nothing else', async () => {
@@ -227,7 +229,7 @@ describe('probeMicrophone', () => {
         },
       },
     } as unknown as Navigator;
-    await probeMicrophone(nav);
+    await probePermission(nav, 'microphone');
     expect(asked).toEqual(['microphone']);
   });
 
@@ -235,6 +237,6 @@ describe('probeMicrophone', () => {
     const nav = {
       permissions: { query: async () => ({ state: 'something-else' }) },
     } as unknown as Navigator;
-    expect(await probeMicrophone(nav)).toBe('unknown');
+    expect(await probePermission(nav, 'microphone')).toBe('unknown');
   });
 });

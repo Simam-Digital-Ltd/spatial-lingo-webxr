@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@iwsdk/core": "0.5.3",
+    "@mediapipe/tasks-vision": "^1.0.1",
     "@spatial-lingo/core": "workspace:*",
     "three": "0.184.0"
   },

@@ -58,10 +58,28 @@ on a plain browser tab it runs Tier 4's showroom, so you can try the full lesson
 object, type the word, get scored, watch the tree grow — immediately.
 
 ```bash
-pnpm test        # 56 tests in packages/lingo-core, 156 in apps/xr
+pnpm test        # 56 tests in packages/lingo-core, 186 in apps/xr
 pnpm typecheck    # both packages
 pnpm build        # production build of apps/xr
 ```
+
+### Camera mode
+
+**"Teach me what my camera sees"** runs the MediaPipe Object Detector in WASM on webcam frames.
+No key, no server, and the frames are analysed in this process and never uploaded — which is the
+entire argument for on-device inference in an app pointed at someone's home. The library is
+dynamically imported, so a visitor who never opens the mode downloads none of it.
+
+The honest limit, stated because it is structural rather than a bug: the model knows COCO's 80
+everyday-object classes, which cover **5 of the 13** starter-pack words — table, couch, bed, plant
+and screen. Window, door, floor, ceiling, wall, lamp, shelf and wall art are not COCO classes and
+can never be detected, however clearly they are in frame. The interface says so up front rather
+than letting you conclude the camera is broken. Anything the model recognises that the pack has no
+word for is shown as "sofa — not in this pack yet" rather than dropped, because the miss is what
+tells you the camera is working.
+
+The camera the browser sees is the room *you* are in, while the rendered showroom is a different,
+virtual room — so this is a second mode, not an upgrade to the existing one.
 
 ### The developer route
 

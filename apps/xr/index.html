@@ -184,12 +184,14 @@
       #challenge-feedback.error { color: var(--ink-dim); }
 
       /* Settings: bring-your-own-key. */
-      #settings-open {
+      #settings-open, #camera-open {
         margin-top: 0.5rem; padding: 0;
         background: none; color: var(--ink-dim);
         font-size: 0.74rem; font-weight: 500;
+        display: block;
       }
-      #settings-open:hover { color: var(--accent); }
+      #settings-open:hover, #camera-open:hover { color: var(--accent); }
+      #camera-open[hidden] { display: none; }
 
       #settings {
         position: fixed; inset: 0; z-index: 4;
@@ -242,6 +244,65 @@
 
       #enter-xr { display: none; }
       #enter-xr.show { display: inline-block; }
+
+      /* Camera mode. See src/vision.ts. */
+      #camera {
+        width: min(30rem, calc(100vw - 2rem));
+        padding: 0.95rem 1.1rem;
+        display: none;
+      }
+      #camera.active { display: block; }
+      #camera .prompt-label {
+        font-size: 0.74rem; text-transform: uppercase;
+        letter-spacing: 0.09em; color: var(--ink-dim);
+      }
+
+      #camera-stage {
+        position: relative; margin-top: 0.5rem;
+        border-radius: 10px; overflow: hidden;
+        background: rgba(0, 0, 0, 0.42);
+        aspect-ratio: 16 / 10;
+      }
+      #camera-video {
+        display: block; width: 100%; height: 100%;
+        object-fit: cover;
+        /* The preview is a mirror of the room, not a photograph of it: an
+           un-mirrored self-view is disorienting when you are moving the
+           device by hand. */
+        transform: scaleX(-1);
+      }
+      #camera-status {
+        position: absolute; inset: auto 0 0 0;
+        padding: 0.45rem 0.6rem;
+        font-size: 0.78rem; line-height: 1.4;
+        color: var(--ink);
+        background: linear-gradient(transparent, rgba(8, 10, 14, 0.82) 45%);
+      }
+
+      #camera-matches {
+        list-style: none; margin: 0.6rem 0 0; padding: 0;
+        display: flex; flex-wrap: wrap; gap: 0.4rem;
+      }
+      #camera-matches li {
+        padding: 0.3rem 0.6rem; border-radius: 999px;
+        font-size: 0.8rem;
+        border: 1px solid var(--stroke);
+        background: rgba(0, 0, 0, 0.28);
+      }
+      /* A word the pack teaches: clickable, and it starts that lesson. */
+      #camera-matches li.known {
+        border-color: var(--accent); color: var(--accent);
+        cursor: pointer;
+      }
+      /* Something the model saw that this pack has no word for. Shown rather
+         than dropped: the miss tells the learner the camera is working. */
+      #camera-matches li.unknown { color: var(--ink-dim); }
+
+      #camera-actions { display: flex; gap: 0.5rem; margin-top: 0.6rem; }
+      #camera-note {
+        margin: 0.55rem 0 0;
+        font-size: 0.72rem; line-height: 1.5; color: var(--ink-dim);
+      }
 
       /* The developer corner, revealed by `?debug`. Two stacked readouts: the
          service health above, the raw lesson-machine dump below. See
@@ -354,6 +415,8 @@
             Click anything in the room to learn its Spanish name.
           </p>
           <button id="settings-open" type="button">Connect a Gemini key</button>
+          <!-- Stays hidden unless the browser has a camera API. -->
+          <button id="camera-open" type="button" hidden>Teach me what my camera sees</button>
         </div>
         <div id="progress" class="panel">
           <div class="count"><b id="learned-count">0</b><span> / <b id="total-count">0</b> learned</span></div>
@@ -406,6 +469,27 @@
             <button id="challenge-skip" class="ghost" type="button">Skip</button>
           </div>
           <div id="challenge-feedback"></div>
+        </div>
+
+        <!-- Camera mode. Hidden until the browser is confirmed to have a
+             camera API, and inert until the learner explicitly opens it —
+             nothing here touches the webcam on page load. -->
+        <div id="camera" class="panel">
+          <div class="prompt-label">What your camera sees</div>
+          <div id="camera-stage">
+            <!-- `playsinline` keeps iOS from taking the video fullscreen, and
+                 `muted` is what makes autoplay permissible at all. -->
+            <video id="camera-video" playsinline muted></video>
+            <div id="camera-status">Point your camera at something to learn its name.</div>
+          </div>
+          <ul id="camera-matches"></ul>
+          <div id="camera-actions">
+            <button id="camera-stop" class="ghost" type="button">Turn the camera off</button>
+          </div>
+          <p id="camera-note">
+            Frames are analysed on this device and are never uploaded. The detection model itself
+            is downloaded from Google once, then cached by your browser.
+          </p>
         </div>
 
         <div id="hint" class="panel">

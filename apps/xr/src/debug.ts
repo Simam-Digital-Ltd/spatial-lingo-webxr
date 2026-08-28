@@ -1,4 +1,5 @@
 import { resolveTier, type Capabilities, type Tier } from './capabilities.js';
+import type { VisionState } from './vision.js';
 
 /**
  * The developer route — the Unity Gym scene, finished rather than ported.
@@ -122,7 +123,10 @@ export function shouldUseSimulatedRoom(tier: Tier, options: DebugOptions): boole
 export type RoomSource = 'showroom' | 'pending' | 'scanned' | 'simulated';
 
 /** Browser permission states, plus the two cases the API itself cannot report. */
-export type MicrophoneState = 'granted' | 'denied' | 'prompt' | 'unsupported' | 'unknown';
+export type PermissionState = 'granted' | 'denied' | 'prompt' | 'unsupported' | 'unknown';
+
+/** @deprecated Kept as the original name; `PermissionState` now covers both devices. */
+export type MicrophoneState = PermissionState;
 
 /**
  * Everything the panel knows, in one object.
@@ -135,7 +139,11 @@ export interface HealthReadout {
   capabilities: Capabilities;
   tierForced: boolean;
   roomSource: RoomSource;
-  microphone: MicrophoneState;
+  microphone: PermissionState;
+  /** Camera permission, for the on-device vision mode. */
+  camera: PermissionState;
+  /** How far the object detector has got. `idle` means it was never opened. */
+  vision: VisionState;
   /** A synthesiser voice exists for the pack's language. */
   voice: boolean;
   /** A Gemini key is configured, so the sentence challenge can run. */
@@ -168,14 +176,15 @@ export function renderHealthPanel(health: HealthReadout): string {
     `xr: ${yesNo(caps.immersiveAR)} · mesh: ${yesNo(caps.meshDetection)}` +
       ` · plane: ${yesNo(caps.planeDetection)} · hands: ${yesNo(caps.handTracking)}`,
     `camera-access: ${yesNo(caps.cameraAccess)}`,
-    `mic: ${describeMicrophone(health.microphone)} · recognition: ${yesNo(caps.speechRecognition)}` +
+    `mic: ${describePermission(health.microphone)} · recognition: ${yesNo(caps.speechRecognition)}` +
       ` · voice: ${yesNo(health.voice)}`,
+    `camera: ${describePermission(health.camera)} · detector: ${health.vision}`,
     `gemini key: ${yesNo(health.geminiKey)}`,
   ].join('<br />');
 }
 
 /** Microphone permission, coloured by whether it will block a lesson. */
-export function describeMicrophone(state: MicrophoneState): string {
+export function describePermission(state: PermissionState): string {
   if (state === 'granted') return OK;
   if (state === 'denied') return '<i class="warn">denied</i>';
   if (state === 'prompt') return '<i class="off">not asked</i>';
@@ -198,12 +207,15 @@ interface PermissionsLike {
  * rejects the query outright, so a throw is reported as `unsupported` rather
  * than treated as an error.
  */
-export async function probeMicrophone(nav: Navigator): Promise<MicrophoneState> {
+export async function probePermission(
+  nav: Navigator,
+  name: 'microphone' | 'camera',
+): Promise<PermissionState> {
   const permissions = (nav as Navigator & { permissions?: PermissionsLike }).permissions;
   if (!permissions?.query) return 'unsupported';
 
   try {
-    const status = await permissions.query({ name: 'microphone' });
+    const status = await permissions.query({ name });
     const state = status.state;
     if (state === 'granted' || state === 'denied' || state === 'prompt') return state;
     return 'unknown';
