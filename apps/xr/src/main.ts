@@ -26,10 +26,11 @@ import {
   DebugPanel,
   applyTierOverride,
   parseDebugOptions,
-  probeMicrophone,
+  probePermission,
   shouldUseSimulatedRoom,
   type DebugOptions,
 } from './debug.js';
+import { CameraPanel } from './camera-ui.js';
 import { GeminiClient } from './gemini.js';
 import { Hud, WelcomeOverlay } from './hud.js';
 import { ProgressStore } from './progress.js';
@@ -272,6 +273,14 @@ function wireLessonLoop(
     });
   }
 
+  // Camera mode: point at a thing, and the thing becomes the lesson. Opt-in,
+  // dynamically imported, and it drives the same `selectTarget` the pointer
+  // does — so a word found by the camera runs the identical lesson loop
+  // rather than a parallel one that could drift from it.
+  const cameraPanel = new CameraPanel(pack);
+  cameraPanel.onPick((label) => lesson.selectTarget(label));
+  cameraPanel.onState((vision) => debugPanel.update({ vision }));
+
   const listener = new Listener(pack);
   if (listener.isAvailable()) {
     hud.enableListening(() => {
@@ -447,6 +456,8 @@ async function main(): Promise<void> {
     tierForced: debugOptions.tier !== null,
     roomSource: 'showroom',
     microphone: 'unknown',
+    camera: 'unknown',
+    vision: 'idle',
     voice: false,
     geminiKey: false,
   });
@@ -454,7 +465,10 @@ async function main(): Promise<void> {
     debugPanel.show();
     // Fire and forget: the panel repaints when the answer arrives, and boot
     // must not wait on a permission query to render the room.
-    void probeMicrophone(navigator).then((microphone) => debugPanel.update({ microphone }));
+    void probePermission(navigator, 'microphone').then((microphone) =>
+      debugPanel.update({ microphone }),
+    );
+    void probePermission(navigator, 'camera').then((camera) => debugPanel.update({ camera }));
   }
 
   const container = getContainer();

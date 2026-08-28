@@ -274,17 +274,33 @@ The Unity original's real mechanic: point the camera at a thing, a model says wh
 becomes the lesson. This is the part everyone remembers, and the part this port replaced with
 platform semantic labels.
 
-### 3a. MediaPipe in the browser (no key, no server, no upload)
+### ~~3a. MediaPipe in the browser (no key, no server, no upload)~~ — done
 
-- Request the webcam through `getUserMedia` behind an explicit, clearly-worded permission prompt.
-- Run the MediaPipe Object Detector in WASM on the video frames — a direct analogue of what Sentis
-  was doing on-device in Unity, and the reason to prefer it over a cloud call: no per-frame cost,
-  no round trip, and the frames never leave the machine. In a language app pointed at someone's
-  home, that last point is the whole argument.
-- Map detections to pack entries by label. Anything not in the pack is shown as "not in this
-  lesson pack yet" rather than silently ignored — the miss is more interesting than the hit.
-- Throttle inference hard. A detection pass every few hundred milliseconds is plenty; per-frame
-  inference will wreck the frame budget of a scene that is also rendering a room.
+Shipped as `apps/xr/src/vision.ts` (rules and runtime) and `camera-ui.ts` (the panel), behind an
+opt-in **"Teach me what my camera sees"** control. Frames are analysed in-process and never
+uploaded; inference is throttled to one pass per 400 ms; releasing the panel stops every track, so
+the camera light goes out rather than lingering.
+
+**The finding worth recording: the detector's vocabulary is not the pack's vocabulary.** The model
+is trained on COCO's 80 everyday-object classes, which cover **5 of the 13** starter-pack words —
+table, couch, bed, plant and screen. The other eight (window, door, floor, ceiling, wall, lamp,
+shelf, wall art) are not COCO classes and can never be detected by this model, however clearly
+they are in frame. That is a property of the model, not a bug, and it is surfaced in the interface
+rather than left for the learner to infer from pointing at their window and getting nothing.
+`undetectableLabels()` derives the list from the pack, so it stays true as packs change.
+
+Two further decisions:
+
+- **The miss is shown, not dropped.** Something the model recognised that the pack has no word for
+  is rendered as "sofa — not in this pack yet". Silence would read as a broken camera; naming the
+  thing reads as a working camera and an incomplete lesson, which is the truth.
+- **The library is dynamically imported.** MediaPipe lands in its own 154 kB chunk, verified absent
+  from the main bundle, so a visitor who never opens camera mode downloads none of it. The runtime
+  and the ~4 MB model are fetched from Google's CDN on first use, at pinned versions — the frames
+  are what stay local, and that is the claim being made.
+
+One hosting change was required: the `Permissions-Policy` header in `firebase.json` set
+`camera=()`, which disables the camera outright, and is now `camera=(self)`.
 
 ### 3b. Cloud enrichment, optional
 
@@ -367,8 +383,10 @@ request on the learner's own key for a diagnostic they did not ask for.
    driven from a URL rather than from a headset.
 3. **Word cloud (Phase 2).** First thing that needs the proxy, so it carries the cost of building
    it. Do not start until the spend cap and App Check are in place.
-4. **Vision (Phase 3).** Independent of Phase 2 — could swap with it. Sequenced second because
-   camera permission is a bigger ask of a casual visitor than a microphone.
+4. ~~**Vision (Phase 3).** Independent of Phase 2 — could swap with it.~~ **3a done**, and it did
+   swap with Phase 2 — precisely because it needs no key, no server and no spending decision,
+   while Phase 2 is gated on a billing cap. Camera permission is still the bigger ask of a casual
+   visitor, which is why the mode is opt-in and the app is complete without it.
 5. **Character (Phase 4).** Last, because it is the most effort and the least mechanism.
 
 ## Cost, honestly

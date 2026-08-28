@@ -55,7 +55,7 @@
           },
           {
             "key": "Permissions-Policy",
-            "value": "xr-spatial-tracking=(self), camera=(), microphone=(self), geolocation=()"
+            "value": "xr-spatial-tracking=(self), camera=(self), microphone=(self), geolocation=(), interest-cohort=()"
           }
         ]
       }
