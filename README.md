@@ -81,6 +81,27 @@ tells you the camera is working.
 The camera the browser sees is the room *you* are in, while the rendered showroom is a different,
 virtual room — so this is a second mode, not an upgrade to the existing one.
 
+### WebXR Capability Report Card
+
+**<https://spatial-lingo-webxr.web.app/report>** — open it on any headset, press one button, and
+it tells you what the browser actually granted: enabled session features, semantic labels seen,
+hand tracking, mesh and plane counts. Copy the result as JSON or as a Markdown table.
+
+It exists because there is no way to ask, ahead of a session, whether an optional WebXR feature
+will be granted — `isSessionSupported` only answers whether a *mode* can be requested. The only
+source of truth is `session.enabledFeatures` on a session that actually started, which means
+somebody has to put the headset on. This makes that a 90-second job.
+
+Two properties worth knowing:
+
+- **It requests `camera-access` directly**, which this app cannot — IWSDK 0.5.3 has no flag for
+  it. So the report card can answer a question the app is structurally unable to ask.
+- **It never reports a measurement it did not take.** A feature the device refused reads `false`;
+  a check that never ran reads `not measured`.
+
+It is a single self-contained HTML file ([`apps/xr/public/report.html`](apps/xr/public/report.html))
+with no dependencies and no build step — save it and run it against any WebXR project.
+
 ### The developer route
 
 The Unity original ships a Gym scene — a sandbox for exercising the room and AI systems without a
