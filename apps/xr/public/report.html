@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>WebXR Capability Report Card</title>
+    <meta
+      name="description"
+      content="Open this on a headset and it reports what the browser actually grants: enabled WebXR features, semantic labels, hand tracking, camera access. Copy the result as JSON or Markdown."
+    />
+    <!--
+      A single self-contained page. No build step, no dependencies, no framework,
+      nothing to install — copy this file anywhere and it works.
+
+      Why it exists: every WebXR project eventually writes down what it thinks a
+      device supports, and almost none of them can check. `isSessionSupported`
+      only answers whether a session *mode* can be requested; the WebXR spec has
+      no way to ask, ahead of a session, whether an optional feature will be
+      granted. The only source of truth is `session.enabledFeatures` on a session
+      that actually started — which means someone has to put the headset on.
+
+      This makes that a 90-second job and produces a result you can paste into a
+      document instead of retyping from a console.
+
+      One deliberate difference from the app it ships beside: this page requests
+      `camera-access` directly, which IWSDK 0.5.3 cannot express at all. So it can
+      answer a question the app structurally cannot ask.
+    -->
+    <style>
+      :root {
+        --ink: #f4f1ea;
+        --ink-dim: rgba(244, 241, 234, 0.62);
+        --panel: rgba(18, 20, 26, 0.86);
+        --stroke: rgba(244, 241, 234, 0.14);
+        --accent: #f2c14e;
+        --good: #7fd18b;
+        --bad: #e8796f;
+        --radius: 14px;
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0; min-height: 100%;
+        background: #0d0f14; color: var(--ink);
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      main { max-width: 46rem; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+      h1 { font-size: 1.3rem; margin: 0 0 0.3rem; }
+      .lede { color: var(--ink-dim); font-size: 0.9rem; line-height: 1.6; margin: 0 0 1.2rem; }
+      .panel {
+        background: var(--panel); border: 1px solid var(--stroke);
+        border-radius: var(--radius); padding: 1rem 1.1rem; margin-bottom: 1rem;
+      }
+      h2 { font-size: 0.95rem; margin: 0 0 0.6rem; }
+      button {
+        font: inherit; font-size: 0.92rem; font-weight: 600;
+        color: #12141a; background: var(--accent);
+        border: 0; border-radius: 10px; padding: 0.7rem 1.15rem; cursor: pointer;
+      }
+      button.ghost { background: transparent; color: var(--ink); border: 1px solid var(--stroke); }
+      button:disabled { opacity: 0.5; cursor: default; }
+      .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+      #status { margin-top: 0.7rem; font-size: 0.85rem; color: var(--ink-dim); line-height: 1.5; }
+
+      table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+      th, td { text-align: left; padding: 0.35rem 0.5rem 0.35rem 0; vertical-align: top; }
+      th { color: var(--ink-dim); font-weight: 600; }
+      tr + tr td, tr + tr th { border-top: 1px solid rgba(244, 241, 234, 0.07); }
+      code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+      code { font-size: 0.82rem; }
+      .yes { color: var(--good); }
+      .no { color: var(--bad); }
+      .dim { color: var(--ink-dim); }
+      .chips { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.4rem; }
+      .chips span {
+        border: 1px solid var(--stroke); border-radius: 999px;
+        padding: 0.2rem 0.55rem; font-size: 0.78rem;
+      }
+      pre {
+        margin: 0.6rem 0 0; padding: 0.75rem; overflow-x: auto;
+        background: rgba(0, 0, 0, 0.42); border-radius: 10px;
+        font-size: 0.75rem; line-height: 1.5; max-height: 22rem;
+      }
+      details { margin-top: 0.6rem; }
+      summary { cursor: pointer; font-size: 0.85rem; color: var(--ink-dim); }
+      .hidden { display: none; }
+      footer { color: var(--ink-dim); font-size: 0.78rem; line-height: 1.6; margin-top: 1.5rem; }
+      a { color: var(--accent); }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>WebXR Capability Report Card</h1>
+      <p class="lede">
+        Open this page on a headset and press <b>Run the check</b>. It starts a real session,
+        requests every optional feature it can, and reports what the browser actually granted —
+        then hands you the result as JSON or a Markdown table you can paste into a document.
+        Nothing is uploaded; everything stays in this tab.
+      </p>
+
+      <div class="panel">
+        <div class="actions">
+          <button id="run" type="button">Run the check</button>
+          <button id="copy-json" class="ghost" type="button" disabled>Copy JSON</button>
+          <button id="copy-md" class="ghost" type="button" disabled>Copy Markdown</button>
+        </div>
+        <div id="status">Ready.</div>
+      </div>
+
+      <div id="results" class="hidden">
+        <div class="panel">
+          <h2>Environment</h2>
+          <table id="env"></table>
+        </div>
+
+        <div class="panel">
+          <h2>Session features</h2>
+          <p class="lede" style="margin:0 0 0.6rem">
+            Requested as <em>optional</em>, so an unsupported feature degrades instead of failing
+            the session. “Granted” is read from <code>session.enabledFeatures</code>, the only
+            trustworthy source.
+          </p>
+          <table id="features"></table>
+        </div>
+
+        <div class="panel">
+          <h2>What the room reported</h2>
+          <table id="room"></table>
+          <div id="labels-wrap" class="hidden">
+            <div class="dim" style="margin-top:0.7rem;font-size:0.82rem">Semantic labels seen</div>
+            <div class="chips" id="labels"></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Copy out</h2>
+          <details open>
+            <summary>JSON</summary>
+            <pre id="json"></pre>
+          </details>
+          <details>
+            <summary>Markdown table</summary>
+            <pre id="md"></pre>
+          </details>
+        </div>
+      </div>
+
+      <footer>
+        Part of <a href="/">Spatial Lingo WebXR</a>. This page is self-contained — save it and
+        run it against any WebXR project.
+      </footer>
+    </main>
+
+    <script>
+      // Everything the app under test requests, plus the two it cannot.
+      // `camera-access` is the interesting one: IWSDK 0.5.3 has no flag for it,
+      // so the app can never learn whether a device would grant it. Here it is
+      // asked for directly.
+      const OPTIONAL_FEATURES = [
+        'local-floor',
+        'bounded-floor',
+        'unbounded',
+        'mesh-detection',
+        'plane-detection',
+        'hand-tracking',
+        'anchors',
+        'hit-test',
+        'depth-sensing',
+        'camera-access',
+        'dom-overlay',
+        'layers',
+      ];
+
+      /** How long to watch frames before ending the session, in ms. */
+      const SAMPLE_MS = 6000;
+
+      const $ = (id) => document.getElementById(id);
+      const status = (text) => { $('status').textContent = text; };
+
+      function yesNo(value) {
+        if (value === true) return '<span class="yes">yes</span>';
+        if (value === false) return '<span class="no">no</span>';
+        return '<span class="dim">' + (value ?? 'unknown') + '</span>';
+      }
+
+      function rows(table, pairs) {
+        table.innerHTML = pairs
+          .map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`)
+          .join('');
+      }
+
+      /**
+       * Standing permission decisions, without prompting.
+       * `permissions.query` reports the stored answer; some browsers reject the
+       * descriptor outright, which is reported as unsupported rather than as an
+       * error, because it is a fact about the browser and not a failure.
+       */
+      async function permission(name) {
+        try {
+          const status = await navigator.permissions?.query({ name });
+          return status?.state ?? 'unknown';
+        } catch {
+          return 'unsupported';
+        }
+      }
+
+      async function collectEnvironment() {
+        const xr = navigator.xr;
+        const env = {
+          userAgent: navigator.userAgent,
+          platform: navigator.userAgentData?.platform ?? 'unknown',
+          languages: navigator.languages?.join(', ') ?? navigator.language,
+          devicePixelRatio: window.devicePixelRatio,
+          screen: `${screen.width}x${screen.height}`,
+          secureContext: window.isSecureContext,
+          webxr: Boolean(xr),
+          immersiveAR: null,
+          immersiveVR: null,
+          inlineXR: null,
+          speechRecognition: 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window,
+          speechSynthesis: 'speechSynthesis' in window,
+          mediaDevices: typeof navigator.mediaDevices?.getUserMedia === 'function',
+          microphonePermission: await permission('microphone'),
+          cameraPermission: await permission('camera'),
+          date: new Date().toISOString(),
+        };
+
+        // `isSessionSupported` answers only whether the MODE can be requested.
+        // It says nothing about which optional features a session would grant —
+        // that is the entire reason this page has to start a real session.
+        for (const [key, mode] of [
+          ['immersiveAR', 'immersive-ar'],
+          ['immersiveVR', 'immersive-vr'],
+          ['inlineXR', 'inline'],
+        ]) {
+          try {
+            env[key] = xr ? await xr.isSessionSupported(mode) : false;
+          } catch {
+            env[key] = false;
+          }
+        }
+        return env;
+      }
+
+      /**
+       * Start a session, watch it for a few seconds, and report what came back.
+       *
+       * A WebGL layer is required: a session without a baseLayer produces no
+       * animation frames on most runtimes, and no frames means no detected
+       * meshes or planes to read.
+       */
+      async function runSession(mode) {
+        const session = await navigator.xr.requestSession(mode, {
+          optionalFeatures: OPTIONAL_FEATURES,
+        });
+
+        const canvas = document.createElement('canvas');
+        const gl = canvas.getContext('webgl2', { xrCompatible: true })
+          ?? canvas.getContext('webgl', { xrCompatible: true });
+        if (gl) {
+          try {
+            await gl.makeXRCompatible?.();
+            session.updateRenderState({ baseLayer: new XRWebGLLayer(session, gl) });
+          } catch (error) {
+            console.warn('[report] could not attach a WebGL layer', error);
+          }
+        }
+
+        // enabledFeatures is the authoritative answer, but it is optional in the
+        // spec and some runtimes omit it — say so rather than reporting an empty
+        // list as "nothing was granted", which is a different and wrong claim.
+        const enabled = session.enabledFeatures ? Array.from(session.enabledFeatures) : null;
+
+        let referenceSpace = null;
+        let referenceSpaceType = null;
+        for (const type of ['local-floor', 'bounded-floor', 'local', 'viewer']) {
+          try {
+            referenceSpace = await session.requestReferenceSpace(type);
+            referenceSpaceType = type;
+            break;
+          } catch {
+            /* try the next one */
+          }
+        }
+
+        const observed = {
+          frames: 0,
+          meshes: 0,
+          planes: 0,
+          labels: new Set(),
+          hands: 0,
+          inputSources: 0,
+          viewCount: null,
+        };
+
+        await new Promise((resolve) => {
+          const started = performance.now();
+          const onFrame = (time, frame) => {
+            observed.frames++;
+            try {
+              const pose = referenceSpace ? frame.getViewerPose(referenceSpace) : null;
+              if (pose) observed.viewCount = pose.views.length;
+
+              // Quest exposes these on the frame, not the session.
+              const meshes = frame.detectedMeshes ?? session.detectedMeshes;
+              if (meshes) {
+                observed.meshes = meshes.size ?? 0;
+                meshes.forEach?.((mesh) => {
+                  if (mesh.semanticLabel) observed.labels.add(mesh.semanticLabel);
+                });
+              }
+              const planes = frame.detectedPlanes ?? session.detectedPlanes;
+              if (planes) {
+                observed.planes = planes.size ?? 0;
+                planes.forEach?.((plane) => {
+                  if (plane.semanticLabel) observed.labels.add(plane.semanticLabel);
+                });
+              }
+
+              observed.inputSources = session.inputSources.length;
+              observed.hands = Array.from(session.inputSources).filter((s) => s.hand).length;
+            } catch (error) {
+              console.warn('[report] frame read failed', error);
+            }
+
+            if (performance.now() - started >= SAMPLE_MS) {
+              resolve();
+              return;
+            }
+            session.requestAnimationFrame(onFrame);
+          };
+          session.requestAnimationFrame(onFrame);
+          session.addEventListener('end', () => resolve(), { once: true });
+        });
+
+        try {
+          await session.end();
+        } catch {
+          /* already ended by the user taking the headset off, which is fine */
+        }
+
+        return {
+          mode,
+          enabledFeatures: enabled,
+          referenceSpace: referenceSpaceType,
+          frames: observed.frames,
+          meshes: observed.meshes,
+          planes: observed.planes,
+          semanticLabels: Array.from(observed.labels).sort(),
+          handInputSources: observed.hands,
+          inputSources: observed.inputSources,
+          views: observed.viewCount,
+        };
+      }
+
+      function renderEnvironment(env) {
+        rows($('env'), [
+          ['User agent', `<code>${env.userAgent}</code>`],
+          ['Secure context', yesNo(env.secureContext)],
+          ['WebXR present', yesNo(env.webxr)],
+          ['<code>immersive-ar</code> supported', yesNo(env.immersiveAR)],
+          ['<code>immersive-vr</code> supported', yesNo(env.immersiveVR)],
+          ['Speech recognition', yesNo(env.speechRecognition)],
+          ['Speech synthesis', yesNo(env.speechSynthesis)],
+          ['getUserMedia', yesNo(env.mediaDevices)],
+          ['Microphone permission', `<span class="dim">${env.microphonePermission}</span>`],
+          ['Camera permission', `<span class="dim">${env.cameraPermission}</span>`],
+          ['Screen / DPR', `<span class="dim">${env.screen} @ ${env.devicePixelRatio}</span>`],
+        ]);
+      }
+
+      function renderSession(result) {
+        const enabled = result.enabledFeatures;
+        $('features').innerHTML = OPTIONAL_FEATURES.map((feature) => {
+          const granted = enabled === null ? null : enabled.includes(feature);
+          return `<tr><th><code>${feature}</code></th><td>${yesNo(granted)}</td></tr>`;
+        }).join('');
+
+        if (enabled === null) {
+          $('features').insertAdjacentHTML(
+            'beforeend',
+            `<tr><th class="dim">note</th><td class="dim">This runtime does not expose
+             <code>session.enabledFeatures</code>, so none of the above could be measured.</td></tr>`,
+          );
+        }
+
+        rows($('room'), [
+          ['Session mode', `<code>${result.mode}</code>`],
+          ['Reference space', `<code>${result.referenceSpace ?? 'none granted'}</code>`],
+          ['Frames sampled', result.frames],
+          ['Views (1 = mono, 2 = stereo)', result.views ?? '<span class="dim">no pose</span>'],
+          ['Detected meshes', result.meshes],
+          ['Detected planes', result.planes],
+          ['Input sources', result.inputSources],
+          ['Hand input sources', result.handInputSources],
+        ]);
+
+        if (result.semanticLabels.length > 0) {
+          $('labels-wrap').classList.remove('hidden');
+          $('labels').innerHTML = result.semanticLabels
+            .map((label) => `<span>${label}</span>`)
+            .join('');
+        }
+      }
+
+      /** A Markdown table shaped to drop straight into a recon document. */
+      function toMarkdown(report) {
+        const { environment: env, session } = report;
+        // Three outcomes, kept distinct on purpose. `false` is a measurement —
+        // the device was asked and said no. "not measured" is the absence of
+        // one. Collapsing them would put numbers into a recon document that
+        // nobody actually observed, which is the specific failure this whole
+        // page exists to prevent.
+        const granted = (feature) => {
+          if (!session) return 'not measured — no session ran';
+          if (session.enabledFeatures === null) return 'not reported by this runtime';
+          return session.enabledFeatures.includes(feature) ? '`true`' : '`false`';
+        };
+
+        const lines = [
+          '| Field | Value |',
+          '| --- | --- |',
+          `| User agent | \`${env.userAgent}\` |`,
+          `| Date tested | ${env.date} |`,
+          `| \`immersive-ar\` supported | \`${env.immersiveAR}\` |`,
+          `| Session mode used | \`${session?.mode ?? 'none'}\` |`,
+          `| Reference space granted | \`${session?.referenceSpace ?? 'none'}\` |`,
+          '',
+          '| Feature | Enabled on device (`session.enabledFeatures`) |',
+          '| --- | --- |',
+        ];
+        for (const feature of OPTIONAL_FEATURES) {
+          lines.push(`| \`${feature}\` | ${granted(feature)} |`);
+        }
+        if (session) {
+          lines.push(
+            '',
+            '| Observation | Value |',
+            '| --- | --- |',
+            `| Detected meshes | ${session.meshes} |`,
+            `| Detected planes | ${session.planes} |`,
+            `| Hand input sources | ${session.handInputSources} |`,
+            `| Semantic labels seen | ${
+              session.semanticLabels.length ? session.semanticLabels.map((l) => `\`${l}\``).join(', ') : 'none'
+            } |`,
+          );
+        }
+        return lines.join('\n');
+      }
+
+      let report = null;
+
+      async function copy(text, button, label) {
+        try {
+          await navigator.clipboard.writeText(text);
+          const original = button.textContent;
+          button.textContent = 'Copied';
+          setTimeout(() => { button.textContent = original; }, 1400);
+        } catch {
+          // Clipboard access is refused in plenty of contexts, and the text is
+          // already on screen — say where to find it rather than failing silently.
+          status(`Clipboard refused. Select the ${label} block above and copy manually.`);
+        }
+      }
+
+      $('run').addEventListener('click', async () => {
+        const button = $('run');
+        button.disabled = true;
+        status('Reading the environment…');
+
+        const environment = await collectEnvironment();
+        renderEnvironment(environment);
+        $('results').classList.remove('hidden');
+
+        let session = null;
+        let error = null;
+        const mode = environment.immersiveAR
+          ? 'immersive-ar'
+          : environment.immersiveVR
+            ? 'immersive-vr'
+            : null;
+
+        if (!navigator.xr) {
+          status('No WebXR in this browser. The environment section above is still valid — open this page on a headset for the rest.');
+        } else if (!mode) {
+          status('WebXR is present but neither immersive mode is supported here. Open this page on a headset.');
+        } else {
+          status(`Starting an ${mode} session — accept any permission prompts, then look around for ${SAMPLE_MS / 1000} seconds.`);
+          try {
+            session = await runSession(mode);
+            renderSession(session);
+            status('Done. Session ended and released.');
+          } catch (err) {
+            error = String(err);
+            // A refused session is a result, not a crash: it means the device or
+            // the person said no, and that is worth recording.
+            status(`Session could not start: ${error}`);
+          }
+        }
+
+        // An empty table under a "Session features" heading reads as "nothing was
+        // granted". Nothing was *measured*, which is a different statement.
+        if (!session) {
+          const why = error
+            ? `The session did not start: <code>${error}</code>`
+            : 'No immersive session ran on this device, so none of these could be measured.';
+          $('features').innerHTML = `<tr><th class="dim">not measured</th><td class="dim">${why}</td></tr>`;
+          $('room').innerHTML = `<tr><th class="dim">not measured</th><td class="dim">Open this page on a headset to fill this in.</td></tr>`;
+        }
+
+        report = { environment, session, error };
+        $('json').textContent = JSON.stringify(report, null, 2);
+        $('md').textContent = toMarkdown(report);
+        $('copy-json').disabled = false;
+        $('copy-md').disabled = false;
+        button.disabled = false;
+        button.textContent = 'Run the check again';
+      });
+
+      $('copy-json').addEventListener('click', (event) =>
+        copy(JSON.stringify(report, null, 2), event.currentTarget, 'JSON'),
+      );
+      $('copy-md').addEventListener('click', (event) =>
+        copy(toMarkdown(report), event.currentTarget, 'Markdown'),
+      );
+    </script>
+  </body>
+</html>

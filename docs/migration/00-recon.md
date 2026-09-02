@@ -18,30 +18,28 @@ on a real device yet. Do not treat any value below as measured.
 
 ## How to fill this in
 
-1. Deploy the app to a reachable URL:
-   ```bash
-   pnpm build
-   npx vercel deploy
-   ```
-   (Requires an authenticated `vercel` CLI session — run `vercel login` first if needed.)
-2. Put on the Quest headset and open the deployment URL in Quest Browser.
-3. Confirm the on-page status panel renders `Tier 3` before entering XR. Quest Browser reports
-   `immersive-ar` as supported even with no session started, so `resolveTier` sees
-   `immersiveAR: true` with no mesh detection yet and resolves to Tier 3 — not Tier 4, which is
-   only what a browser with no WebXR support at all resolves to (see `apps/xr/src/capabilities.ts`'s
-   `resolveTier`).
-4. Press **Enter XR**. Accept any permission prompts the browser shows (hand tracking,
-   scene understanding, etc.) — decline none of them, so the reading reflects the browser's
-   actual ceiling, not a user's conservative choice.
-5. Read the rendered capability list and the resolved tier off the in-headset panel, and
-   also check the browser console for the `[spatial-lingo] capabilities ... tier ...`
-   `console.info` line (visible via `adb logcat` or a remote devtools session if you need
-   the exact object instead of the rendered check/cross marks).
-6. Fill in every `PENDING — requires physical Quest` cell in the table below with the
-   observed `true`/`false` and the resolved tier. Record the Quest hardware model (Quest 2 /
-   Quest 3 / Quest 3S / Quest Pro) and the Quest Browser (Wolvic/Horizon OS browser) version,
-   since feature availability has historically differed across both.
-7. Update the "Verdict" section once real data is in.
+There is now a tool for this: **[the WebXR Capability Report Card](../../apps/xr/public/report.html)**,
+deployed alongside the app at **<https://spatial-lingo-webxr.web.app/report>**. It is a single
+self-contained HTML file with no dependencies.
+
+1. Open that URL in Quest Browser on the headset.
+2. Press **Run the check** and accept every permission prompt — decline none, so the reading
+   reflects the browser's actual ceiling rather than a conservative choice.
+3. Look around for the six seconds it samples, so meshes and planes have a chance to surface.
+4. Press **Copy Markdown** and paste the result into this document, replacing the `PENDING`
+   tables below. Press **Copy JSON** for the raw record.
+
+Two things it does that the app cannot:
+
+- **It requests `camera-access` directly.** IWSDK 0.5.3's `XRFeatureOptions` has no flag for it,
+  so the app can never learn whether a device would grant it — which is the single open question
+  this document exists to answer. The report card asks the runtime directly.
+- **It distinguishes "denied" from "not measured".** A feature the device refused reads `false`;
+  a check that never ran reads `not measured`. Filling this table with plausible-looking `false`
+  values nobody observed is the exact failure mode this document was written to avoid.
+
+The app's own `?debug` corner (see `apps/xr/src/debug.ts`) is the second source: it shows the
+resolved tier, the granted features, and the room source live, in the running app.
 
 ## Device and environment
 
